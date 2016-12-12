@@ -1,7 +1,6 @@
 module Neo4Apis
-  class Spiderman < Base
-    # Adds a prefix to labels so that they become AwesomeSiteUser and AwesomeSiteWidget (optional)
-    common_label :Spiderman
+  class Rotoscope < Base
+    common_label :Rotoscope
 
     uuid :Object, :ruby_object_id
     uuid :TracePoint, :uuid
@@ -21,30 +20,30 @@ module Neo4Apis
 
       IMPORTED_OBJECT_NODES[object.object_id] = object_node
 
-      class_node = import :Object, object.class
-      add_relationship :IS_A, object_node, class_node if class_node
+      class_node = import(:Object, object.class)
+      add_relationship(:IS_A, object_node, class_node) if class_node
 
       object_node
     end
 
     importer :TracePoint do |tp, parent|
-      next nil if tp.method_id.to_s.strip.empty? && tp.defined_class.to_s.strip.empty?
+      next nil if tp.method_id.strip.empty? && tp.defined_class.strip.empty?
 
-      trace_point_node = add_node :TracePoint, tp, %i(event lineno method_id) do |node|
+      trace_point_node = add_node :TracePoint, tp, [:event, :method_id] do |node|
         node.uuid = SecureRandom.uuid
-        node.defined_class = tp.defined_class.to_s
+        node.defined_class = tp.defined_class
       end
 
       unless tp == tp.self
         begin
-          ruby_object_node = import :Object, tp.self
-          add_relationship :FROM_OBJECT, trace_point_node, ruby_object_node
+          ruby_object_node = import(:Object, tp.self)
+          add_relationship(:FROM_OBJECT, trace_point_node, ruby_object_node)
         rescue Exception
           nil
         end
       end
 
-      add_relationship :HAS_PARENT, trace_point_node, parent if parent
+      add_relationship(:HAS_PARENT, trace_point_node, parent) if parent
 
       trace_point_node
     end
