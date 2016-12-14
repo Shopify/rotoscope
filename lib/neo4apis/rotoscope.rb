@@ -32,7 +32,7 @@ module Neo4Apis
         node.uuid = SecureRandom.uuid
       end
 
-      unless tp.defined_class == tp.self.klass
+      if tp.defined_class != tp.self.klass.inspect
         ruby_object_node = import(:Object, tp.self)
         add_relationship(:FROM_OBJECT, trace_point_node, ruby_object_node)
       end

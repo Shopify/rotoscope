@@ -11,4 +11,5 @@ Gem::Specification.new do |s|
   s.homepage    = 'http://rubygems.org/gems/rotoscope'
   s.license     = 'MIT'
   s.add_runtime_dependency 'neo4apis', '~> 0.9', '>= 0.9.1'
+  s.add_runtime_dependency 'msgpack'
 end
