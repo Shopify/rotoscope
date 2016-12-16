@@ -13,6 +13,7 @@ Rotoscope.trace do
 end
 ```
 
+## Benchmark against `Order.find(1).refundable?` in Shopify/shopify
 ```
                            user     system      total        real
 no trace               0.240000   0.020000   0.260000 (  0.379642)
