@@ -1,5 +1,6 @@
 require 'msgpack'
 require 'json'
+require 'rotoscope/rotoscope'
 
 require 'neo4apis'
 require_relative 'neo4apis/rotoscope'
@@ -52,25 +53,33 @@ class Rotoscope
   private
 
   def record_trace
-    fh = File.open(OUTPUT_FILE, 'a', encoding: Encoding::ASCII_8BIT)
+    fh = File.open(OUTPUT_FILE, 'a', encoding: Encoding::ASCII_8BIT) unless serialization_format == :c
     ruby_tp = TracePoint.new(*TP_EVENTS) do |tp|
-      next if tp.path.match(%r{/rotoscope/})
-      tracepoint = Struct::TracePoint.from_tracepoint(tp)
-      fh.puts(serialize(tracepoint))
+      begin
+        next if tp.path.match(%r{/rotoscope/})
+        if serialization_format == :c
+          log_tracepoint(tp)
+        else
+          tracepoint = Struct::TracePoint.from_tracepoint(tp)
+          fh.puts(serialize(tracepoint))
+        end
+      rescue => e
+        puts e.inspect
+        puts e.backtrace
+      end
     end
     ruby_tp.enable
     yield
   ensure
     ruby_tp.disable
-    fh.close
+    fh.close unless serialization_format == :c
   end
 
   def serialize(tracepoint)
     case serialization_format
     when :msgpack 
-      tracepoint.self.klass = tracepoint.self.klass.to_h
-      tracepoint.self = tracepoint.self.to_h
-      tracepoint = tracepoint.to_h
+      # tracepoint.self.klass = tracepoint.self.klass.to_h
+      # tracepoint.self = tracepoint.self.to_h
       MessagePack.pack(tracepoint)
       # msgpack_serializer.packer.write(tracepoint).to_s
     when :json
@@ -89,7 +98,12 @@ class Rotoscope
   def deserialize(line)
     case serialization_format
     when :msgpack 
-     msgpack_serializer.unpacker.feed_each(line) { |tp| return tp }
+     msgpack_serializer.unpacker.feed_each(line) do |tp_arr|
+      tp = Struct::TracePoint.new(*tp_arr[0..2])
+      tp.self = Struct::RubyObject.new(*tp_arr[3])
+      tp.self.klass = Struct::RubyObject.new(*tp.self.klass)
+      return tp
+     end
     when :json, :manual
       parsed = JSON.parse(line)
       tp = Struct::TracePoint.new(*parsed.values)
