@@ -1,13 +1,11 @@
 #include <ruby.h>
 #include <stdio.h>
 
-const char* rubyObjectFields[2] = {"object_id", "inspect"};
 typedef struct RubyObject {
   unsigned long int object_id;
   char* inspect;
 } RubyObject;
 
-const char* tracePointFields[3] = {"event", "method_id", "defined_class"};;
 typedef struct TracePoint {
   char* event;
   char* method_id;
@@ -30,12 +28,6 @@ static char* read_symbol_field(VALUE obj, char* field) {
   Check_Type(out, T_SYMBOL);
   return rb_sym2str(out);
 }
-
-// static char* read_string_field(VALUE obj, char* field) {
-//   VALUE out = send_field(obj, field);
-//   Check_Type(out, T_STRING);
-//   return RSTRING_PTR(out);
-// }
 
 static char* inspect_object(VALUE obj) {
   return rb_inspect(obj);

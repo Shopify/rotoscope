@@ -41,10 +41,9 @@ class Rotoscope
 
       IO.foreach(path) do |data|
         tp = deserialize(data)
-        # next unless tp.is_a?(Struct::TracePoint)
         # puts "#{tp.defined_class}##{tp.method_id}-[:IS_A]->(#{tp.self.klass.inspect})"
         ancestor_stack.pop if ['return', 'c_return'].include?(tp.event)
-        # last_tracepoint_node = session.import(:TracePoint, tp, ancestor_stack.last)
+        last_tracepoint_node = session.import(:TracePoint, tp, ancestor_stack.last)
         ancestor_stack.push(last_tracepoint_node) if ['call', 'c_call'].include?(tp.event)
       end
     end
@@ -78,10 +77,7 @@ class Rotoscope
   def serialize(tracepoint)
     case serialization_format
     when :msgpack 
-      # tracepoint.self.klass = tracepoint.self.klass.to_h
-      # tracepoint.self = tracepoint.self.to_h
       MessagePack.pack(tracepoint)
-      # msgpack_serializer.packer.write(tracepoint).to_s
     when :json
       tracepoint.self.klass = tracepoint.self.klass.to_h
       tracepoint.self = tracepoint.self.to_h
