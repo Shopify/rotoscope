@@ -1,84 +1,82 @@
-#include <ruby.h>
+#include "ruby.h"
+#include "ruby/debug.h"
+#include "ruby/intern.h"
 #include <stdio.h>
 
-typedef struct RubyObject {
-  unsigned long int object_id;
-  char* inspect;
-} RubyObject;
+#define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
+#define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
 
-typedef struct TracePoint {
-  char* event;
-  char* method_id;
-  char* defined_class;
-  struct RubyObject self;
-} TracePoint;
-
-static VALUE send_field(VALUE obj, char* field) {
-  return rb_funcall(obj, rb_intern(field), 0);
+static const char* evflag2name(rb_event_flag_t evflag) {
+  switch(evflag) {
+    case RUBY_EVENT_CALL:
+      return "call";
+    case RUBY_EVENT_C_CALL:
+      return "c_call";
+    case RUBY_EVENT_RETURN:
+      return "return";
+    case RUBY_EVENT_C_RETURN:
+      return "c_return";
+    default:
+      return "unknown";
+  }
 }
 
-static unsigned long int read_fixnum_field(VALUE obj, char* field) {
-  VALUE out = send_field(obj, field);
-  Check_Type(out, T_FIXNUM);
-  return FIX2LONG(out);
+static char* class2str(VALUE klass) {
+  VALUE cached_lookup = rb_class_path_cached(klass);
+  if (NIL_P(cached_lookup)) {
+    return RSTRING_PTR(rb_class_name(klass));
+  } else {
+    return RSTRING_PTR(cached_lookup);
+  }
 }
 
-static char* read_symbol_field(VALUE obj, char* field) {
-  VALUE out = send_field(obj, field);
-  Check_Type(out, T_SYMBOL);
-  return rb_sym2str(out);
+static void event_hook(VALUE tpval, void *data) {
+  FILE *log;
+  const char *event, *method_name, *method_owner;
+
+  log = (FILE *)data;
+  rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
+
+  event = evflag2name(rb_tracearg_event_flag(trace_arg));
+  method_name = RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg)));
+
+  // causes sketchy behaviour in Rubyland
+  // inspect = RSTRING_PTR(rb_inspect(rb_tracearg_self(trace_arg)));
+
+  VALUE self = rb_tracearg_self(trace_arg);
+  VALUE klass;
+  switch (TYPE(self)) {
+    case T_OBJECT:
+    case T_CLASS:
+    case T_MODULE:
+      klass = RBASIC_CLASS(self);
+      method_owner = class2str(klass);
+      break;
+    default:
+      klass = rb_tracearg_defined_class(trace_arg);
+      method_owner = class2str(klass);
+      break;
+  }
+
+  fprintf(log, "%s:   \t%s#%s (0x%lx)\n", event, method_owner, method_name, rb_obj_id(klass));
 }
 
-static char* inspect_object(VALUE obj) {
-  return rb_inspect(obj);
+VALUE rotoscope_trace(VALUE self)
+{
+  FILE* log = fopen("/tmp/trace.log", "w");
+  /* TODO: check return */
+
+  VALUE tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)log);
+  rb_tracepoint_enable(tracepoint);
+  VALUE ret = rb_yield(Qundef);
+  rb_tracepoint_disable(tracepoint);
+
+  fclose(log);
+  return ret;
 }
 
-static struct RubyObject rubyobject_from_VALUE(VALUE value) {
-  struct RubyObject obj;
-  VALUE real_class = rb_obj_class(value);
-
-  obj.object_id = read_fixnum_field(real_class, "object_id");
-  obj.inspect = rb_inspect(real_class);
-  return obj;
-} 
-
-static struct TracePoint tracepoint_from_VALUE(VALUE obj) {
-  struct TracePoint tp;
-  tp.event = read_symbol_field(obj, "event");
-  tp.method_id = read_symbol_field(obj, "method_id");
-  tp.defined_class = inspect_object(send_field(obj, "defined_class"));
-  tp.self = rubyobject_from_VALUE(send_field(obj, "self"));
-  return tp;
-}
-
-int serialize_to_file(struct TracePoint* tp) {
-  FILE* fout = fopen("tmp/trace/trace.log", "w");
-  serialize_tracepoint(tp, fout);
-  serialize_rubyobject(&tp->self, fout);
-  fwrite("\n", sizeof(char), 1, fout);
-  fclose(fout);
-}
-
-int serialize_tracepoint(struct TracePoint* tp, FILE* fout) {
-  fwrite(tp->event, sizeof(char), strlen(tp->event), fout);
-  fwrite(tp->method_id, sizeof(char), strlen(tp->method_id), fout);
-  fwrite(tp->defined_class, sizeof(char), strlen(tp->defined_class), fout);
-  return 0;
-}
-
-int serialize_rubyobject(struct RubyObject* obj, FILE* fout) {
-  fwrite(&obj->object_id, sizeof(unsigned long int), 1, fout);
-  fwrite(obj->inspect, sizeof(char), strlen(obj->inspect), fout);
-  return 0;
-}
-
-static VALUE log_tracepoint(VALUE self, VALUE trace) {
-  struct TracePoint tp = tracepoint_from_VALUE(trace);
-  serialize_to_file(&tp);
-  return rb_str_new2("Hello");
-}
-
-void Init_rotoscope(void) {
-  VALUE cRotoscope = rb_define_class("Rotoscope", rb_cObject);
-  rb_define_method(cRotoscope, "log_tracepoint", log_tracepoint, 1);
+void Init_rotoscope(void)
+{
+  VALUE mRotoscope = rb_define_module("Rotoscope");
+  rb_define_module_function(mRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
 }
