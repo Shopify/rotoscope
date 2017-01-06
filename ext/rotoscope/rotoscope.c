@@ -6,6 +6,14 @@
 #define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
 
+typedef enum { false, true } bool;
+
+typedef struct {
+  FILE* log;
+  VALUE tracepoint;
+  VALUE blacklist;
+} TRACE;
+
 static const char* evflag2name(rb_event_flag_t evflag) {
   switch(evflag) {
     case RUBY_EVENT_CALL:
@@ -30,21 +38,31 @@ static char* class2str(VALUE klass) {
   }
 }
 
-static void event_hook(VALUE tpval, void *data) {
-  FILE *log;
-  const char *event, *method_name, *method_owner;
+int indent = 0;
 
-  log = (FILE *)data;
-  rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
+static bool rejected_path(char* path, VALUE blacklist) {
 
-  event = evflag2name(rb_tracearg_event_flag(trace_arg));
-  method_name = RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg)));
+  long i;
+  for (i=0; i < RARRAY_LEN(blacklist); i++) {
+    if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) {
+      return true;
+    }
+  }
 
-  // causes sketchy behaviour in Rubyland
-  // inspect = RSTRING_PTR(rb_inspect(rb_tracearg_self(trace_arg)));
+  return false;
+}
 
+typedef struct {
+  const char* event;
+  const char* method_name;
+  const char* method_owner;
+} TRACEVALS;
+
+static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
   VALUE self = rb_tracearg_self(trace_arg);
+  const char *method_owner;
   VALUE klass;
+
   switch (TYPE(self)) {
     case T_OBJECT:
     case T_CLASS:
@@ -58,25 +76,64 @@ static void event_hook(VALUE tpval, void *data) {
       break;
   }
 
-  fprintf(log, "%s:   \t%s#%s (0x%lx)\n", event, method_owner, method_name, rb_obj_id(klass));
+  return (TRACEVALS) {
+    .event = evflag2name(rb_tracearg_event_flag(trace_arg)),
+    .method_name = RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg))),
+    .method_owner = method_owner
+  };
 }
 
-VALUE rotoscope_trace(VALUE self)
+static void event_hook(VALUE tpval, void *data) {
+  TRACE* tp = (TRACE *)data;
+
+  rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
+
+  char* trace_path = RSTRING_PTR(rb_tracearg_path(trace_arg));
+  if (rejected_path(trace_path, tp->blacklist)) return;
+
+  TRACEVALS trace_values = extract_full_tracevals(trace_arg);
+  // if (rb_tracearg_event_flag(trace_arg) & EVENT_RETURN && indent > 0) indent--;
+  fprintf(tp->log, "%*s%-8s > %s#%s\n", indent, "", trace_values.event, trace_values.method_owner, trace_values.method_name/*, trace_path, FIX2INT(rb_tracearg_lineno(trace_arg))*/);
+  // if (rb_tracearg_event_flag(trace_arg) & EVENT_CALL) indent++;
+}
+
+TRACE tp_container;
+
+VALUE rotoscope_start_trace(VALUE self, VALUE args) {
+  FILE* log = fopen("/tmp/trace.log", "a");
+
+  if (RARRAY_LEN(args) > 0) {
+    tp_container.blacklist = rb_ary_entry(args, 0);
+  } else {
+    tp_container.blacklist = rb_ary_new();
+  }
+
+  tp_container.log = log;
+  tp_container.tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)&tp_container);
+  rb_tracepoint_enable(tp_container.tracepoint);
+
+  return Qnil;
+}
+
+VALUE rotoscope_stop_trace(VALUE self) {
+  rb_tracepoint_disable(tp_container.tracepoint);
+
+  fclose(tp_container.log);
+  return Qnil;
+}
+
+VALUE rotoscope_trace(VALUE self, VALUE args)
 {
-  FILE* log = fopen("/tmp/trace.log", "w");
-  /* TODO: check return */
-
-  VALUE tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)log);
-  rb_tracepoint_enable(tracepoint);
+  rotoscope_start_trace(self, args);
   VALUE ret = rb_yield(Qundef);
-  rb_tracepoint_disable(tracepoint);
-
-  fclose(log);
+  rotoscope_stop_trace(self);
   return ret;
 }
 
 void Init_rotoscope(void)
 {
   VALUE mRotoscope = rb_define_module("Rotoscope");
-  rb_define_module_function(mRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
+  rb_define_module_function(mRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, -2);
+  rb_define_module_function(mRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, -2);
+  rb_define_module_function(mRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
 }
