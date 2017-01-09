@@ -1,0 +1,12 @@
+GEM
+  specs:
+    rotoscope (0.0.1)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  rotoscope
+
+BUNDLED WITH
+   1.13.6

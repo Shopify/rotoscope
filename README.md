@@ -1,5 +1,7 @@
 # Rotoscope
 
+Rotoscope performs introspection of method calls in Ruby programs.
+
 ## Usage
 ```
 $ rake install
@@ -8,17 +10,48 @@ $ rake install
 ```ruby
 require 'rotoscope'
 
+class Dog
+  def bark
+    make_sound('woof!')
+  end
+end
+
+def make_sound(sound)
+  puts sound
+end
+
 Rotoscope.trace do
-  Order.find(1).refundable?
+  dog1 = Dog.new
+  dog1.bark
 end
 ```
 
-## Benchmark against `Order.find(1).refundable?` in Shopify/shopify
+The resulting method calls are saved in `/tmp/trace.log` in the order they were received.
+
+Sample output:
+
 ```
-                           user     system      total        real
-no trace               0.240000   0.020000   0.260000 (  0.379642)
-trace w/o logging      0.440000   0.020000   0.460000 (  0.604192)
-manual                33.440000   1.170000  34.610000 ( 35.602534)
-json                 162.400000   2.450000 164.850000 (167.229680)
-msgpack               59.650000   4.480000  64.130000 ( 65.702134)
+c_call   > Class#new
+  c_call   > Dog#initialize
+  c_return > Dog#initialize
+c_return > Class#new
+call     > Dog#bark
+  call     > Dog#make_sound
+    c_call   > Dog#puts
+      c_call   > IO#puts
+        c_call   > IO#write
+        c_return > IO#write
+        c_call   > IO#write
+        c_return > IO#write
+      c_return > IO#puts
+    c_return > Dog#puts
+  return   > Dog#make_sound
+return   > Dog#bark
+```
+
+Optionally, you may provide a blacklist of paths to ignore. This is useful for limiting the footprint of the output file as well as improving performance in hotspots.
+
+```ruby
+BLACKLIST = ['/.gem/', '/lib/ruby/', '(eval)']
+Rotoscope.trace(BLACKLIST) { ... }
 ```
