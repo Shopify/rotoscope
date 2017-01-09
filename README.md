@@ -55,3 +55,5 @@ Optionally, you may provide a blacklist of paths to ignore. This is useful for l
 BLACKLIST = ['/.gem/', '/lib/ruby/', '(eval)']
 Rotoscope.trace(BLACKLIST) { ... }
 ```
+
+Also available are `Rotoscope.start_trace(blacklist = nil)` and `Rotoscope.stop_trace` methods.
