@@ -1,7 +1,19 @@
-require "rake/extensiontask"
+# ==========================================================
+# Packaging
+# ==========================================================
+GEMSPEC = Gem::Specification::load('rotoscope.gemspec')
 
-Rake::ExtensionTask.new "rotoscope" do |ext|
-  ext.lib_dir = "lib/rotoscope"
+require 'rubygems/package_task'
+Gem::PackageTask.new(GEMSPEC) do |pkg|
+end
+
+# ==========================================================
+# Ruby Extension
+# ==========================================================
+
+require 'rake/extensiontask'
+Rake::ExtensionTask.new('rotoscope', GEMSPEC) do |ext|
+  ext.lib_dir = 'lib/rotoscope'
 end
 
 task :install => [:compile] do |t|
