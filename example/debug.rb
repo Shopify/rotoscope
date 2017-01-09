@@ -1,15 +1,16 @@
 require 'rotoscope'
-require_relative 'main'
 
 class Dog
-  def foo
-    3
+  def bark
+    make_sound('woof!')
   end
+end
+
+def make_sound(sound)
+  puts sound
 end
 
 Rotoscope.trace do
   dog1 = Dog.new
-  dog2 = Dog.new
-  dog2.to_s
-  dog1.foo
+  dog1.bark
 end

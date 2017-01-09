@@ -93,7 +93,7 @@ static void event_hook(VALUE tpval, void *data) {
 
   TRACEVALS trace_values = extract_full_tracevals(trace_arg);
   // if (rb_tracearg_event_flag(trace_arg) & EVENT_RETURN && indent > 0) indent--;
-  fprintf(tp->log, "%*s%-8s > %s#%s\n", indent, "", trace_values.event, trace_values.method_owner, trace_values.method_name/*, trace_path, FIX2INT(rb_tracearg_lineno(trace_arg))*/);
+  fprintf(tp->log, "%*s%-8s > %s#%s (%s:%d)\n", indent, "", trace_values.event, trace_values.method_owner, trace_values.method_name, trace_path, FIX2INT(rb_tracearg_lineno(trace_arg)));
   // if (rb_tracearg_event_flag(trace_arg) & EVENT_CALL) indent++;
 }
 
