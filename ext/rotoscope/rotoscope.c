@@ -2,6 +2,7 @@
 #include "ruby/debug.h"
 #include "ruby/intern.h"
 #include <stdio.h>
+#include <errno.h>
 
 #define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
@@ -13,6 +14,17 @@ typedef struct {
   VALUE tracepoint;
   VALUE blacklist;
 } TRACE;
+
+typedef struct {
+  const char* event;
+  const char* method_name;
+  const char* method_owner;
+} TRACEVALS;
+
+void log_output(const char* str) {
+  printf("[!]\t%s\n", str);
+  fflush(stdout);
+}
 
 static const char* evflag2name(rb_event_flag_t evflag) {
   switch(evflag) {
@@ -41,7 +53,6 @@ static char* class2str(VALUE klass) {
 int indent = 0;
 
 static bool rejected_path(char* path, VALUE blacklist) {
-
   long i;
   for (i=0; i < RARRAY_LEN(blacklist); i++) {
     if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) {
@@ -51,12 +62,6 @@ static bool rejected_path(char* path, VALUE blacklist) {
 
   return false;
 }
-
-typedef struct {
-  const char* event;
-  const char* method_name;
-  const char* method_owner;
-} TRACEVALS;
 
 static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
   VALUE self = rb_tracearg_self(trace_arg);
@@ -85,6 +90,9 @@ static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
 
 static void event_hook(VALUE tpval, void *data) {
   TRACE* tp = (TRACE *)data;
+  if (ftell(tp->log) > 100000000) {
+    return;
+  }
 
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
 
@@ -93,6 +101,7 @@ static void event_hook(VALUE tpval, void *data) {
 
   TRACEVALS trace_values = extract_full_tracevals(trace_arg);
   // if (rb_tracearg_event_flag(trace_arg) & EVENT_RETURN && indent > 0) indent--;
+
   fprintf(tp->log, "%*s%-8s > %s#%s (%s:%d)\n", indent, "", trace_values.event, trace_values.method_owner, trace_values.method_name, trace_path, FIX2INT(rb_tracearg_lineno(trace_arg)));
   // if (rb_tracearg_event_flag(trace_arg) & EVENT_CALL) indent++;
 }
@@ -100,24 +109,40 @@ static void event_hook(VALUE tpval, void *data) {
 TRACE tp_container;
 
 VALUE rotoscope_start_trace(VALUE self, VALUE args) {
-  FILE* log = fopen("/tmp/trace.log", "a");
+  FILE* log;
 
   if (RARRAY_LEN(args) > 0) {
-    tp_container.blacklist = rb_ary_entry(args, 0);
+    const char* path = RSTRING_PTR(rb_ary_entry(args, 0));
+
+    log = fopen(path, "a");
+    if (log == NULL) {
+      printf("failed to open file handle at %s (%s)", path, strerror(errno));
+      exit(1);
+    }
+  } else {
+    rb_raise(rb_eArgError, "wrong number of arguments (0 for 1..2)");
+  }
+
+  if (RARRAY_LEN(args) > 1) {
+    tp_container.blacklist = rb_ary_entry(args, 1);
   } else {
     tp_container.blacklist = rb_ary_new();
   }
 
   tp_container.log = log;
   tp_container.tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)&tp_container);
+
   rb_tracepoint_enable(tp_container.tracepoint);
 
   return Qnil;
 }
 
 VALUE rotoscope_stop_trace(VALUE self) {
-  rb_tracepoint_disable(tp_container.tracepoint);
+  if (ftell(tp_container.log) > 100000000) {
+    printf("File size has reached limit of 100mb.\n");
+  }
 
+  rb_tracepoint_disable(tp_container.tracepoint);
   fclose(tp_container.log);
   return Qnil;
 }
