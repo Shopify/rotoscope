@@ -6,6 +6,7 @@
 
 #define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
+#define MAX_LOG_SIZE 100000000 /* bytes */
 
 typedef enum { false, true } bool;
 
@@ -19,6 +20,8 @@ typedef struct {
   const char* event;
   const char* method_name;
   const char* method_owner;
+  const char* filepath;
+  int lineno;
 } TRACEVALS;
 
 void log_output(const char* str) {
@@ -50,8 +53,6 @@ static char* class2str(VALUE klass) {
   }
 }
 
-int indent = 0;
-
 static bool rejected_path(char* path, VALUE blacklist) {
   long i;
   for (i=0; i < RARRAY_LEN(blacklist); i++) {
@@ -61,6 +62,29 @@ static bool rejected_path(char* path, VALUE blacklist) {
   }
 
   return false;
+}
+
+#define MIN_BUFSIZE 150
+#define MAX_BUFSIZE 500
+
+int format_for_csv(char* buffer, size_t size, TRACEVALS trace) {
+  return snprintf(buffer, size, "%s,\"%s\",\"%s\",\"%s\",%d",
+    trace.event,
+    trace.method_owner,
+    trace.method_name,
+    trace.filepath,
+    trace.lineno);
+}
+
+static char* trace_as_csv(TRACEVALS trace) {
+  char *buf = (char *)malloc(MIN_BUFSIZE);
+
+  if (format_for_csv(buf, MIN_BUFSIZE, trace) >= MIN_BUFSIZE) {
+    free(buf);
+    buf = (char *)malloc(MAX_BUFSIZE);
+    format_for_csv(buf, MAX_BUFSIZE, trace);
+  }
+  return buf;
 }
 
 static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
@@ -84,26 +108,25 @@ static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
   return (TRACEVALS) {
     .event = evflag2name(rb_tracearg_event_flag(trace_arg)),
     .method_name = RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg))),
-    .method_owner = method_owner
+    .method_owner = method_owner,
+    .filepath = RSTRING_PTR(rb_tracearg_path(trace_arg)),
+    .lineno = FIX2INT(rb_tracearg_lineno(trace_arg))
   };
 }
 
 static void event_hook(VALUE tpval, void *data) {
   TRACE* tp = (TRACE *)data;
-  if (ftell(tp->log) > 100000000) {
-    return;
-  }
+  if (ftell(tp->log) > MAX_LOG_SIZE) return;
 
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
-
   char* trace_path = RSTRING_PTR(rb_tracearg_path(trace_arg));
+
   if (rejected_path(trace_path, tp->blacklist)) return;
 
   TRACEVALS trace_values = extract_full_tracevals(trace_arg);
-  // if (rb_tracearg_event_flag(trace_arg) & EVENT_RETURN && indent > 0) indent--;
-
-  fprintf(tp->log, "%*s%-8s > %s#%s (%s:%d)\n", indent, "", trace_values.event, trace_values.method_owner, trace_values.method_name, trace_path, FIX2INT(rb_tracearg_lineno(trace_arg)));
-  // if (rb_tracearg_event_flag(trace_arg) & EVENT_CALL) indent++;
+  char* formatted_str = trace_as_csv(trace_values);
+  fprintf(tp->log, "%s\n", formatted_str);
+  free(formatted_str);
 }
 
 TRACE tp_container;
@@ -138,7 +161,7 @@ VALUE rotoscope_start_trace(VALUE self, VALUE args) {
 }
 
 VALUE rotoscope_stop_trace(VALUE self) {
-  if (ftell(tp_container.log) > 100000000) {
+  if (ftell(tp_container.log) > MAX_LOG_SIZE) {
     printf("File size has reached limit of 100mb.\n");
   }
 
