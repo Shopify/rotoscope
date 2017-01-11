@@ -53,7 +53,7 @@ static char* class2str(VALUE klass) {
   }
 }
 
-static bool rejected_path(char* path, VALUE blacklist) {
+static bool rejected_path(const char* path, VALUE blacklist) {
   long i;
   for (i=0; i < RARRAY_LEN(blacklist); i++) {
     if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) {
@@ -87,6 +87,11 @@ static char* trace_as_csv(TRACEVALS trace) {
   return buf;
 }
 
+static const char* tracearg_path(rb_trace_arg_t *trace_arg) {
+  VALUE path = rb_tracearg_path(trace_arg);
+  return RTEST(path) ? RSTRING_PTR(path) : "";
+}
+
 static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
   VALUE self = rb_tracearg_self(trace_arg);
   const char *method_owner;
@@ -109,17 +114,19 @@ static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
     .event = evflag2name(rb_tracearg_event_flag(trace_arg)),
     .method_name = RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg))),
     .method_owner = method_owner,
-    .filepath = RSTRING_PTR(rb_tracearg_path(trace_arg)),
+    .filepath = tracearg_path(trace_arg),
     .lineno = FIX2INT(rb_tracearg_lineno(trace_arg))
   };
 }
 
 static void event_hook(VALUE tpval, void *data) {
   TRACE* tp = (TRACE *)data;
+
+  if (tp->log == NULL) return;
   if (ftell(tp->log) > MAX_LOG_SIZE) return;
 
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
-  char* trace_path = RSTRING_PTR(rb_tracearg_path(trace_arg));
+  const char* trace_path = tracearg_path(trace_arg);
 
   if (rejected_path(trace_path, tp->blacklist)) return;
 
@@ -161,12 +168,8 @@ VALUE rotoscope_start_trace(VALUE self, VALUE args) {
 }
 
 VALUE rotoscope_stop_trace(VALUE self) {
-  if (ftell(tp_container.log) > MAX_LOG_SIZE) {
-    printf("File size has reached limit of 100mb.\n");
-  }
-
   rb_tracepoint_disable(tp_container.tracepoint);
-  fclose(tp_container.log);
+  if (tp_container.log) fclose(tp_container.log);
   return Qnil;
 }
 
