@@ -9,6 +9,7 @@ $ rake install
 
 ```ruby
 require 'rotoscope'
+OUTPUT_PATH = File.join(Rails.root, 'logs/trace.log')
 
 class Dog
   def bark
@@ -20,7 +21,7 @@ def make_sound(sound)
   puts sound
 end
 
-Rotoscope.trace do
+Rotoscope.trace(OUTPUT_PATH) do
   dog1 = Dog.new
   dog1.bark
 end
@@ -52,8 +53,9 @@ return   > Dog#bark
 Optionally, you may provide a blacklist of paths to ignore. This is useful for limiting the footprint of the output file as well as improving performance in hotspots.
 
 ```ruby
-BLACKLIST = ['/.gem/', '/lib/ruby/', '(eval)']
-Rotoscope.trace(BLACKLIST) { ... }
+OUTPUT_PATH = File.join(Rails.root, 'logs/trace.log')
+
+Rotoscope.trace(OUTPUT_PATH, %w(/.gem/ /gems/) { ... }
 ```
 
-Also available are `Rotoscope.start_trace(blacklist = nil)` and `Rotoscope.stop_trace` methods.
+Also available are `Rotoscope.start_trace(output_path, blacklist = nil)` and `Rotoscope.stop_trace` methods.
