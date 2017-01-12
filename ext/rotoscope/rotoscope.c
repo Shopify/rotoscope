@@ -11,12 +11,6 @@
 typedef enum { false, true } bool;
 
 typedef struct {
-  FILE* log;
-  VALUE tracepoint;
-  VALUE blacklist;
-} TRACE;
-
-typedef struct {
   const char* event;
   const char* method_name;
   const char* method_owner;
@@ -24,10 +18,12 @@ typedef struct {
   int lineno;
 } TRACEVALS;
 
-void log_output(const char* str) {
-  printf("[!]\t%s\n", str);
-  fflush(stdout);
-}
+typedef struct {
+  FILE* log;
+  VALUE tracepoint;
+  VALUE blacklist;
+  const char* foo;
+} Rotoscope;
 
 static const char* evflag2name(rb_event_flag_t evflag) {
   switch(evflag) {
@@ -55,11 +51,19 @@ static char* class2str(VALUE klass) {
 
 static bool rejected_path(const char* path, VALUE blacklist) {
   long i;
+  char *blacklist_path;
+  Check_Type(blacklist, T_ARRAY);
+
   for (i=0; i < RARRAY_LEN(blacklist); i++) {
-    if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) {
-      return true;
-    }
+    printf("2");fflush(stdout);
+    blacklist_path = RSTRING_PTR(RARRAY_AREF(blacklist, i));
+    printf("3");fflush(stdout);
+    if (strlen(path) < strlen(blacklist_path)) continue;
+    printf("4");fflush(stdout);
+    if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) return true;
   }
+
+  printf("5");fflush(stdout);
 
   return false;
 }
@@ -120,32 +124,48 @@ static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
 }
 
 static void event_hook(VALUE tpval, void *data) {
-  TRACE* tp = (TRACE *)data;
-
-  if (tp->log == NULL) return;
-  if (ftell(tp->log) > MAX_LOG_SIZE) return;
-
+  printf("!");fflush(stdout);
+  Rotoscope* config = (Rotoscope *)data;
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
-  const char* trace_path = tracearg_path(trace_arg);
+  printf("@");fflush(stdout);
 
-  if (rejected_path(trace_path, tp->blacklist)) return;
+  const char* trace_path = tracearg_path(trace_arg);
+  printf("#");fflush(stdout);
+  if (rejected_path(trace_path, config->blacklist)) return;
+  printf("$");fflush(stdout);
 
   TRACEVALS trace_values = extract_full_tracevals(trace_arg);
+
+  printf("6");fflush(stdout);
   char* formatted_str = trace_as_csv(trace_values);
-  fprintf(tp->log, "%s\n", formatted_str);
+  printf("7");fflush(stdout);
+  if (config->log != NULL) {
+    printf("8\nSTORED: %s\n", config->foo);fflush(stdout);
+    fprintf(config->log, "%s\n", formatted_str);
+  }
+
+  printf("9");fflush(stdout);
   free(formatted_str);
+  printf("0");fflush(stdout);
 }
 
-TRACE tp_container;
+static VALUE allocate(VALUE klass) {
+  Rotoscope* config;
+  return Data_Make_Struct(klass, Rotoscope, NULL, -1, config);
+}
 
-VALUE rotoscope_start_trace(VALUE self, VALUE args) {
-  FILE* log;
+VALUE initialize(VALUE self, VALUE args) {
+  printf("A");fflush(stdout);
+  Rotoscope* config;
+  Data_Get_Struct(self, Rotoscope, config);
+
+  config->foo = "HELLO WORLD";
 
   if (RARRAY_LEN(args) > 0) {
     const char* path = RSTRING_PTR(rb_ary_entry(args, 0));
 
-    log = fopen(path, "a");
-    if (log == NULL) {
+    config->log = fopen(path, "a");
+    if (config->log == NULL) {
       printf("failed to open file handle at %s (%s)", path, strerror(errno));
       exit(1);
     }
@@ -154,37 +174,63 @@ VALUE rotoscope_start_trace(VALUE self, VALUE args) {
   }
 
   if (RARRAY_LEN(args) > 1) {
-    tp_container.blacklist = rb_ary_entry(args, 1);
+    config->blacklist = rb_ary_dup(rb_ary_entry(args, 1));
   } else {
-    tp_container.blacklist = rb_ary_new();
+    config->blacklist = rb_ary_new();
   }
+  printf("B");fflush(stdout);
+  return self;
+}
 
-  tp_container.log = log;
-  tp_container.tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)&tp_container);
+VALUE rotoscope_start_trace(VALUE self) {
+  printf("C");fflush(stdout);
+  Rotoscope* config;
+  Data_Get_Struct(self, Rotoscope, config);
 
-  rb_tracepoint_enable(tp_container.tracepoint);
+  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)config);
 
+  rb_tracepoint_enable(config->tracepoint);
+
+  printf("D");fflush(stdout);
   return Qnil;
 }
 
 VALUE rotoscope_stop_trace(VALUE self) {
-  rb_tracepoint_disable(tp_container.tracepoint);
-  if (tp_container.log) fclose(tp_container.log);
+  printf("E");fflush(stdout);
+  Rotoscope* config;
+  Data_Get_Struct(self, Rotoscope, config);
+
+  printf("F");fflush(stdout);
+  rb_tracepoint_disable(config->tracepoint);
+  printf("G");fflush(stdout);
+  if (config->log) fclose(config->log);
+  printf("H");fflush(stdout);
   return Qnil;
 }
 
-VALUE rotoscope_trace(VALUE self, VALUE args)
+VALUE cRotoscope;
+
+VALUE rotoscope_trace(VALUE self, VALUE trace_args)
 {
-  rotoscope_start_trace(self, args);
+  VALUE args[2];
+  args[0] = (RARRAY_LEN(trace_args) > 0) ? rb_ary_entry(trace_args, 0) : (VALUE)"/tmp/trace";
+  args[1] = (RARRAY_LEN(trace_args) > 1) ? rb_ary_entry(trace_args, 1) : Qnil;
+
+  printf("G");fflush(stdout);
+  VALUE trace = rb_class_new_instance(2, args, cRotoscope);
+  rotoscope_start_trace(trace);
   VALUE ret = rb_yield(Qundef);
-  rotoscope_stop_trace(self);
+  rotoscope_stop_trace(trace);
+  printf("H");fflush(stdout);
   return ret;
 }
 
 void Init_rotoscope(void)
 {
-  VALUE mRotoscope = rb_define_module("Rotoscope");
-  rb_define_module_function(mRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, -2);
-  rb_define_module_function(mRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, -2);
-  rb_define_module_function(mRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
+  cRotoscope = rb_define_class("Rotoscope", rb_cObject);
+  rb_define_alloc_func(cRotoscope, allocate);
+  rb_define_method(cRotoscope, "initialize", initialize, -2);
+  rb_define_singleton_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, -2);
+  rb_define_method(cRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
+  rb_define_method(cRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
 }
