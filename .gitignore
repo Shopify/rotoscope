@@ -1,3 +1,5 @@
 tmp
 lib/rotoscope/rotoscope.bundle
 lib/rotoscope/rotoscope.so
+.vscode
+*.gem
