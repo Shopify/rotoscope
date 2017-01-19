@@ -1,6 +1,6 @@
 Gem::Specification.new do |s|
   s.name        = 'rotoscope'
-  s.version     = '0.0.2'
+  s.version     = '0.1.0'
   s.date        = '2016-12-13'
   s.summary     = "Tracing Ruby"
   s.description = "Rotoscope performs introspection of method calls in Ruby programs."

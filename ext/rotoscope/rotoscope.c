@@ -3,31 +3,7 @@
 #include "ruby/intern.h"
 #include <stdio.h>
 #include <errno.h>
-
-#define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
-#define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
-#define MAX_LOG_SIZE 100000000 /* bytes */
-
-typedef enum { false, true } bool;
-
-typedef struct {
-  FILE* log;
-  VALUE tracepoint;
-  VALUE blacklist;
-} TRACE;
-
-typedef struct {
-  const char* event;
-  const char* method_name;
-  const char* method_owner;
-  const char* filepath;
-  int lineno;
-} TRACEVALS;
-
-void log_output(const char* str) {
-  printf("[!]\t%s\n", str);
-  fflush(stdout);
-}
+#include "rotoscope.h"
 
 static const char* evflag2name(rb_event_flag_t evflag) {
   switch(evflag) {
@@ -46,142 +22,168 @@ static const char* evflag2name(rb_event_flag_t evflag) {
 
 static char* class2str(VALUE klass) {
   VALUE cached_lookup = rb_class_path_cached(klass);
-  if (NIL_P(cached_lookup)) {
-    return RSTRING_PTR(rb_class_name(klass));
-  } else {
-    return RSTRING_PTR(cached_lookup);
-  }
+  if (NIL_P(cached_lookup)) return RSTRING_PTR(rb_class_name(klass));
+  else return RSTRING_PTR(cached_lookup);
 }
 
-static bool rejected_path(char* path, VALUE blacklist) {
+static bool rejected_path(const char* path, VALUE blacklist) {
   long i;
+  char *blacklist_path;
+  Check_Type(blacklist, T_ARRAY);
+
   for (i=0; i < RARRAY_LEN(blacklist); i++) {
-    if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) {
-      return true;
-    }
+    blacklist_path = RSTRING_PTR(RARRAY_AREF(blacklist, i));
+    if (strlen(path) < strlen(blacklist_path)) continue;
+    if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) return true;
   }
 
   return false;
 }
 
-#define MIN_BUFSIZE 150
-#define MAX_BUFSIZE 500
-
-int format_for_csv(char* buffer, size_t size, TRACEVALS trace) {
+int format_for_csv(char* buffer, size_t size, rs_tracepoint_t trace) {
   return snprintf(buffer, size, "%s,\"%s\",\"%s\",\"%s\",%d",
-    trace.event,
-    trace.method_owner,
-    trace.method_name,
-    trace.filepath,
-    trace.lineno);
+    trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
 }
 
-static char* trace_as_csv(TRACEVALS trace) {
-  char *buf = (char *)malloc(MIN_BUFSIZE);
+static char* trace_as_csv(rs_tracepoint_t trace) {
+  int result;
+  char *buf = ALLOC_N(char, MIN_CSV_BUFSIZE);
+  result = format_for_csv(buf, MIN_CSV_BUFSIZE, trace);
 
-  if (format_for_csv(buf, MIN_BUFSIZE, trace) >= MIN_BUFSIZE) {
-    free(buf);
-    buf = (char *)malloc(MAX_BUFSIZE);
-    format_for_csv(buf, MAX_BUFSIZE, trace);
+  if (result >= MIN_CSV_BUFSIZE) {
+    REALLOC_N(buf, char, MAX_CSV_BUFSIZE);
+    result = format_for_csv(buf, MAX_CSV_BUFSIZE, trace);
+
+    if (result >= MAX_CSV_BUFSIZE) {
+      fprintf(stderr, "\nERROR: Could not allocate enough room for tracepoint (%s,\"%s\",\"%s\",\"%s\",%d)\n",
+        trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
+      exit(1);
+    }
   }
+
   return buf;
 }
 
-static TRACEVALS extract_full_tracevals(rb_trace_arg_t* trace_arg) {
+static const char* tracearg_path(rb_trace_arg_t *trace_arg) {
+  VALUE path = rb_tracearg_path(trace_arg);
+  return RTEST(path) ? RSTRING_PTR(path) : "";
+}
+
+static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t* trace_arg) {
   VALUE self = rb_tracearg_self(trace_arg);
-  const char *method_owner;
-  VALUE klass;
 
-  switch (TYPE(self)) {
-    case T_OBJECT:
-    case T_CLASS:
-    case T_MODULE:
-      klass = RBASIC_CLASS(self);
-      method_owner = class2str(klass);
-      break;
-    default:
-      klass = rb_tracearg_defined_class(trace_arg);
-      method_owner = class2str(klass);
-      break;
-  }
+  VALUE klass = (RB_TYPE_P(self, T_OBJECT) || RB_TYPE_P(self, T_CLASS) || RB_TYPE_P(self, T_MODULE)) ?
+    RBASIC_CLASS(self) :
+    rb_tracearg_defined_class(trace_arg);
+  const char *method_owner = class2str(klass);
 
-  return (TRACEVALS) {
+  return (rs_tracepoint_t) {
     .event = evflag2name(rb_tracearg_event_flag(trace_arg)),
     .method_name = RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg))),
     .method_owner = method_owner,
-    .filepath = RSTRING_PTR(rb_tracearg_path(trace_arg)),
+    .filepath = tracearg_path(trace_arg),
     .lineno = FIX2INT(rb_tracearg_lineno(trace_arg))
   };
 }
 
 static void event_hook(VALUE tpval, void *data) {
-  TRACE* tp = (TRACE *)data;
-  if (ftell(tp->log) > MAX_LOG_SIZE) return;
+  Rotoscope* config = (Rotoscope *)data;
 
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
-  char* trace_path = RSTRING_PTR(rb_tracearg_path(trace_arg));
 
-  if (rejected_path(trace_path, tp->blacklist)) return;
+  if (!RB_TYPE_P(config->blacklist, T_ARRAY)) {
+    fprintf(stderr, "\nERROR: Blacklist is not T_ARRAY, is 0x%x\n", TYPE(config->blacklist));
+    exit(1);
+  }
 
-  TRACEVALS trace_values = extract_full_tracevals(trace_arg);
+  const char* trace_path = tracearg_path(trace_arg);
+  if (rejected_path(trace_path, config->blacklist)) return;
+
+  rs_tracepoint_t trace_values = extract_full_tracevals(trace_arg);
+
   char* formatted_str = trace_as_csv(trace_values);
-  fprintf(tp->log, "%s\n", formatted_str);
+  if (config->log != NULL) {
+    fprintf(config->log, "%s\n", formatted_str);
+  }
+
   free(formatted_str);
 }
 
-TRACE tp_container;
+static void gc_mark(Rotoscope* config) {
+  rb_gc_mark(config->tracepoint);
+  rb_gc_mark(config->blacklist);
+}
 
-VALUE rotoscope_start_trace(VALUE self, VALUE args) {
-  FILE* log;
+void dealloc(Rotoscope* config) {
+  if (config->log) fclose(config->log);
+  free(config);
+}
 
-  if (RARRAY_LEN(args) > 0) {
-    const char* path = RSTRING_PTR(rb_ary_entry(args, 0));
+static VALUE alloc(VALUE klass) {
+  Rotoscope* config;
+  return Data_Make_Struct(klass, Rotoscope, gc_mark, dealloc, config);
+}
 
-    log = fopen(path, "a");
-    if (log == NULL) {
-      printf("failed to open file handle at %s (%s)", path, strerror(errno));
-      exit(1);
-    }
-  } else {
+VALUE initialize(VALUE self, VALUE args) {
+  Rotoscope* config;
+  Data_Get_Struct(self, Rotoscope, config);
+
+  if (RARRAY_LEN(args) < 1) {
     rb_raise(rb_eArgError, "wrong number of arguments (0 for 1..2)");
+    exit(1);
   }
 
-  if (RARRAY_LEN(args) > 1) {
-    tp_container.blacklist = rb_ary_entry(args, 1);
+  Check_Type(rb_ary_entry(args, 0), T_STRING);
+  const char* path = RSTRING_PTR(rb_ary_entry(args, 0));
+  config->log = fopen(path, "a");
+  if (config->log == NULL) {
+    fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n", path, strerror(errno));
+    exit(1);
+  }
+
+  if (RARRAY_LEN(args) > 1 && rb_ary_entry(args, 1) != Qnil) {
+    config->blacklist = rb_ary_dup(rb_ary_entry(args, 1));
   } else {
-    tp_container.blacklist = rb_ary_new();
+    config->blacklist = rb_ary_new();
   }
 
-  tp_container.log = log;
-  tp_container.tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)&tp_container);
+  Check_Type(config->blacklist, T_ARRAY);
+  return self;
+}
 
-  rb_tracepoint_enable(tp_container.tracepoint);
+VALUE rotoscope_start_trace(VALUE self) {
+  Rotoscope* config;
+  Data_Get_Struct(self, Rotoscope, config);
+
+  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)config);
+  rb_tracepoint_enable(config->tracepoint);
 
   return Qnil;
 }
 
 VALUE rotoscope_stop_trace(VALUE self) {
-  if (ftell(tp_container.log) > MAX_LOG_SIZE) {
-    printf("File size has reached limit of 100mb.\n");
+  Rotoscope* config;
+  Data_Get_Struct(self, Rotoscope, config);
+
+  if (rb_tracepoint_enabled_p(config->tracepoint)) {
+    rb_tracepoint_disable(config->tracepoint);
   }
 
-  rb_tracepoint_disable(tp_container.tracepoint);
-  fclose(tp_container.log);
   return Qnil;
 }
 
-VALUE rotoscope_trace(VALUE self, VALUE args)
-{
-  rotoscope_start_trace(self, args);
-  VALUE ret = rb_yield(Qundef);
-  rotoscope_stop_trace(self);
-  return ret;
+VALUE cRotoscope;
+
+VALUE rotoscope_trace(VALUE self) {
+  rotoscope_start_trace(self);
+  return rb_ensure(rb_yield, Qundef, rotoscope_stop_trace, self);
 }
 
-void Init_rotoscope(void)
-{
-  VALUE mRotoscope = rb_define_module("Rotoscope");
-  rb_define_module_function(mRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, -2);
-  rb_define_module_function(mRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, -2);
-  rb_define_module_function(mRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
+void Init_rotoscope(void) {
+  cRotoscope = rb_define_class("Rotoscope", rb_cObject);
+  rb_define_alloc_func(cRotoscope, alloc);
+  rb_define_method(cRotoscope, "initialize", initialize, -2);
+  rb_define_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
+  rb_define_method(cRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
+  rb_define_method(cRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
 }

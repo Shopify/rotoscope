@@ -2,10 +2,37 @@
 
 Rotoscope performs introspection of method calls in Ruby programs.
 
-## Usage
+## API
+
+### Rotoscope#new(output_path, blacklist=[])
+```ruby
+rs = Rotoscope.new(output_path)
+# or...
+rs = Rotoscope.new(output_path, %w(/.gem/ /gems/))
 ```
-$ rake install
+
+### Rotoscope#trace(&block)
+```ruby
+rs.trace do
+  # code to trace...
+end
 ```
+
+### Rotoscope#start_trace
+```ruby
+rs.start_trace
+# code to trace...
+rs.stop_trace
+```
+
+### Rotoscope#stop_trace
+```ruby
+rs.start_trace
+# code to trace...
+rs.stop_trace
+```
+
+## Example
 
 ```ruby
 require 'rotoscope'
@@ -21,41 +48,32 @@ def make_sound(sound)
   puts sound
 end
 
-Rotoscope.trace(OUTPUT_PATH) do
+rs = Rotoscope.new(OUTPUT_PATH)
+rs.trace do
   dog1 = Dog.new
   dog1.bark
 end
 ```
 
-The resulting method calls are saved in `/tmp/trace.log` in the order they were received.
+The resulting method calls are saved in the specified `output_path` in the order they were received.
 
 Sample output:
 
 ```
-c_call   > Class#new
-  c_call   > Dog#initialize
-  c_return > Dog#initialize
-c_return > Class#new
-call     > Dog#bark
-  call     > Dog#make_sound
-    c_call   > Dog#puts
-      c_call   > IO#puts
-        c_call   > IO#write
-        c_return > IO#write
-        c_call   > IO#write
-        c_return > IO#write
-      c_return > IO#puts
-    c_return > Dog#puts
-  return   > Dog#make_sound
-return   > Dog#bark
+c_call,"Class","new","test.rb",16
+c_call,"Dog","initialize","test.rb",16
+c_return,"Dog","initialize","test.rb",16
+c_return,"Class","new","test.rb",16
+call,"Dog","bark","test.rb",4
+call,"Dog","make_sound","test.rb",9
+c_call,"Dog","puts","test.rb",10
+c_call,"IO","puts","test.rb",10
+c_call,"IO","write","test.rb",10
+c_return,"IO","write","test.rb",10
+c_call,"IO","write","test.rb",10
+c_return,"IO","write","test.rb",10
+c_return,"IO","puts","test.rb",10
+c_return,"Dog","puts","test.rb",10
+return,"Dog","make_sound","test.rb",11
+return,"Dog","bark","test.rb",6
 ```
-
-Optionally, you may provide a blacklist of paths to ignore. This is useful for limiting the footprint of the output file as well as improving performance in hotspots.
-
-```ruby
-OUTPUT_PATH = File.join(Rails.root, 'logs/trace.log')
-
-Rotoscope.trace(OUTPUT_PATH, %w(/.gem/ /gems/) { ... }
-```
-
-Also available are `Rotoscope.start_trace(output_path, blacklist = nil)` and `Rotoscope.stop_trace` methods.
