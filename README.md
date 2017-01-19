@@ -2,36 +2,6 @@
 
 Rotoscope performs introspection of method calls in Ruby programs.
 
-## API
-
-### Rotoscope#new(output_path, blacklist=[])
-```ruby
-rs = Rotoscope.new(output_path)
-# or...
-rs = Rotoscope.new(output_path, %w(/.gem/ /gems/))
-```
-
-### Rotoscope#trace(&block)
-```ruby
-rs.trace do
-  # code to trace...
-end
-```
-
-### Rotoscope#start_trace
-```ruby
-rs.start_trace
-# code to trace...
-rs.stop_trace
-```
-
-### Rotoscope#stop_trace
-```ruby
-rs.start_trace
-# code to trace...
-rs.stop_trace
-```
-
 ## Example
 
 ```ruby
@@ -76,4 +46,34 @@ c_return,"IO","puts","test.rb",10
 c_return,"Dog","puts","test.rb",10
 return,"Dog","make_sound","test.rb",11
 return,"Dog","bark","test.rb",6
+```
+
+## API
+
+### Rotoscope#new(output_path, blacklist=[])
+```ruby
+rs = Rotoscope.new(output_path)
+# or...
+rs = Rotoscope.new(output_path, %w(/.gem/ /gems/))
+```
+
+### Rotoscope#trace(&block)
+```ruby
+rs.trace do
+  # code to trace...
+end
+```
+
+### Rotoscope#start_trace
+```ruby
+rs.start_trace
+# code to trace...
+rs.stop_trace
+```
+
+### Rotoscope#stop_trace
+```ruby
+rs.start_trace
+# code to trace...
+rs.stop_trace
 ```
