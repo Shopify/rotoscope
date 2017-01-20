@@ -58,7 +58,7 @@ Logs all calls and returns of methods to `output_path`, except for those whose f
 ```ruby
 Rotoscope.trace(output_path) { |rs| ... }
 # or...
-Rotoscope.new(output_path, %w(/.gem/ /gems/)) { |rs| ... }
+Rotoscope.trace(output_path, ["/.gem/", "/gems/"]) { |rs| ... }
 ```
 
 #### `Rotoscope::new(output_path, blacklist=[])`
