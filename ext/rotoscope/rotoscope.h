@@ -3,7 +3,6 @@
 
 #define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
-#define CSV_BUFSIZE 500
 
 typedef enum { false, true } bool;
 
@@ -12,15 +11,16 @@ typedef struct {
   const char* method_name;
   const char* method_owner;
   const char* filepath;
-  int lineno;
+  unsigned int lineno;
 } rs_tracepoint_t;
 
+#include "zlib.h"
+
 typedef struct {
-  FILE* log;
+  gzFile log;
   VALUE tracepoint;
   VALUE blacklist;
-  long blacklist_size;
-  char* csv_buffer;
+  unsigned long blacklist_size;
 } Rotoscope;
 
 #endif

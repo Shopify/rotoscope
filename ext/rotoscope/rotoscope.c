@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <errno.h>
 #include "rotoscope.h"
+#include "zlib.h"
 
 static const char* evflag2name(rb_event_flag_t evflag) {
   switch(evflag) {
@@ -22,13 +23,12 @@ static const char* evflag2name(rb_event_flag_t evflag) {
 
 static char* class2str(VALUE klass) {
   VALUE cached_lookup = rb_class_path_cached(klass);
-  if (NIL_P(cached_lookup)) return RSTRING_PTR(rb_class_name(klass));
+  if (NIL_P(cached_lookup) || strncmp(RSTRING_PTR(cached_lookup), "Class", 5)) return RSTRING_PTR(rb_class_name(klass));
   else return RSTRING_PTR(cached_lookup);
 }
 
 static bool rejected_path(const char* path, Rotoscope* config) {
-  long i;
-  char *blacklist_path;
+  unsigned long i;
   Check_Type(config->blacklist, T_ARRAY);
 
   for (i=0; i < config->blacklist_size; i++) {
@@ -37,17 +37,6 @@ static bool rejected_path(const char* path, Rotoscope* config) {
   }
 
   return false;
-}
-
-static void trace_as_csv(rs_tracepoint_t trace, char* buffer, size_t buf_size) {
-  int result = snprintf(buffer, buf_size, "%s,\"%s\",\"%s\",\"%s\",%d",
-    trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
-
-  if (result >= CSV_BUFSIZE) {
-    fprintf(stderr, "\nERROR: Could not allocate enough room for tracepoint, larger than %d bytes (%s,\"%s\",\"%s\",\"%s\",%d)\n",
-      CSV_BUFSIZE, trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
-    exit(1);
-  }
 }
 
 static const char* tracearg_path(rb_trace_arg_t *trace_arg) {
@@ -79,31 +68,28 @@ static void event_hook(VALUE tpval, void *data) {
 
   if (rejected_path(trace_path, config)) return;
 
-  rs_tracepoint_t trace_values = extract_full_tracevals(trace_arg);
-  trace_as_csv(trace_values, config->csv_buffer, CSV_BUFSIZE);
-  fprintf(config->log, "%s\n", config->csv_buffer);
+  rs_tracepoint_t trace = extract_full_tracevals(trace_arg);
+  gzprintf(config->log, "%s,\"%s\",\"%s\",\"%s\",%d\n",
+    trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
 }
 
 static void gc_mark(Rotoscope* config) {
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->blacklist);
-  rb_gc_mark(config->csv_buffer);
 }
 
 void dealloc(Rotoscope* config) {
   if (config->log) {
-    fclose(config->log);
+    gzclose(config->log);
     config->log = NULL;
   }
 
-  xfree(config->csv_buffer);
-  xfree(config);
+  free(config);
 }
 
-static VALUE alloc(VALUE self) {
-  Rotoscope* config = ALLOC(Rotoscope);
-  config->csv_buffer = ALLOC_N(char, CSV_BUFSIZE);
-  return Data_Wrap_Struct(self, gc_mark, dealloc, config);
+static VALUE alloc(VALUE klass) {
+  Rotoscope* config;
+  return Data_Make_Struct(klass, Rotoscope, gc_mark, dealloc, config);
 }
 
 static Rotoscope* get_config(VALUE self) {
@@ -123,7 +109,7 @@ VALUE initialize(int argc, VALUE* argv, VALUE self) {
 
   Check_Type(output_path, T_STRING);
   const char* path = RSTRING_PTR(output_path);
-  config->log = fopen(path, "a");
+  config->log = gzopen(path, "a");
   if (config->log == NULL) {
     fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n", path, strerror(errno));
     exit(1);
