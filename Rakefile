@@ -17,5 +17,5 @@ Rake::ExtensionTask.new('rotoscope', GEMSPEC) do |ext|
 end
 
 task :install => [:compile] do |t|
-  sh "gem build rotoscope.gemspec && gem install rotoscope-0.0.2.gem"
+  sh "gem build rotoscope.gemspec && gem install rotoscope-*.gem"
 end
