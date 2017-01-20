@@ -51,7 +51,7 @@ return,"Dog","bark","test.rb",6
 
 ### Public Class Methods
 
-`Rotoscope::trace(output_path, blacklist=[])`
+#### `Rotoscope::trace(output_path, blacklist=[])`
 
 Logs all calls and returns of methods to `output_path`, except for those whose filepath contains any entry in `blacklist`. The provided `output_path` must be an absolute file path.
 
@@ -61,7 +61,7 @@ Rotoscope.trace(output_path) { |rs| ... }
 Rotoscope.trace(output_path, ["/.gem/", "/gems/"]) { |rs| ... }
 ```
 
-`Rotoscope::new(output_path, blacklist=[])`
+#### `Rotoscope::new(output_path, blacklist=[])`
 
 Similar to `Rotoscope::trace`, but allows fine-grain control with `Rotoscope#start_trace` and `Rotoscope#stop_trace`.
 ```ruby
@@ -72,7 +72,7 @@ rs = Rotoscope.new(output_path, ["/.gem/", "/gems/"])
 
 ### Public Instance Methods
 
-`Rotoscope#trace(&block)`
+#### `Rotoscope#trace(&block)`
 
 Same as `Rotoscope::trace`, but does not need to create a file handle on invocation.
 
@@ -83,7 +83,7 @@ rs.trace do
 end
 ```
 
-`Rotoscope#start_trace`
+#### `Rotoscope#start_trace`
 
 Begins writing method calls and returns to the `output_path` specified in the initializer.
 
@@ -94,7 +94,7 @@ rs.start_trace
 rs.stop_trace
 ```
 
-`Rotoscope#stop_trace`
+#### `Rotoscope#stop_trace`
 
 Stops writing method calls and returns to the `output_path`.
 
