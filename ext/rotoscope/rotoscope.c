@@ -26,42 +26,28 @@ static char* class2str(VALUE klass) {
   else return RSTRING_PTR(cached_lookup);
 }
 
-static bool rejected_path(const char* path, VALUE blacklist) {
+static bool rejected_path(const char* path, Rotoscope* config) {
   long i;
   char *blacklist_path;
-  Check_Type(blacklist, T_ARRAY);
+  Check_Type(config->blacklist, T_ARRAY);
 
-  for (i=0; i < RARRAY_LEN(blacklist); i++) {
-    blacklist_path = RSTRING_PTR(RARRAY_AREF(blacklist, i));
-    if (strlen(path) < strlen(blacklist_path)) continue;
-    if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) return true;
+  for (i=0; i < config->blacklist_size; i++) {
+    if (strstr(path, RSTRING_PTR(RARRAY_AREF(config->blacklist, i))))
+      return true;
   }
 
   return false;
 }
 
-int format_for_csv(char* buffer, size_t size, rs_tracepoint_t trace) {
-  return snprintf(buffer, size, "%s,\"%s\",\"%s\",\"%s\",%d",
+static void trace_as_csv(rs_tracepoint_t trace, char* buffer, size_t buf_size) {
+  int result = snprintf(buffer, buf_size, "%s,\"%s\",\"%s\",\"%s\",%d",
     trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
-}
 
-static char* trace_as_csv(rs_tracepoint_t trace) {
-  int result;
-  char *buf = ALLOC_N(char, MIN_CSV_BUFSIZE);
-  result = format_for_csv(buf, MIN_CSV_BUFSIZE, trace);
-
-  if (result >= MIN_CSV_BUFSIZE) {
-    REALLOC_N(buf, char, MAX_CSV_BUFSIZE);
-    result = format_for_csv(buf, MAX_CSV_BUFSIZE, trace);
-
-    if (result >= MAX_CSV_BUFSIZE) {
-      fprintf(stderr, "\nERROR: Could not allocate enough room for tracepoint, larger than %d bytes (%s,\"%s\",\"%s\",\"%s\",%d)\n",
-        MAX_CSV_BUFSIZE, trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
-      exit(1);
-    }
+  if (result >= CSV_BUFSIZE) {
+    fprintf(stderr, "\nERROR: Could not allocate enough room for tracepoint, larger than %d bytes (%s,\"%s\",\"%s\",\"%s\",%d)\n",
+      CSV_BUFSIZE, trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
+    exit(1);
   }
-
-  return buf;
 }
 
 static const char* tracearg_path(rb_trace_arg_t *trace_arg) {
@@ -91,34 +77,33 @@ static void event_hook(VALUE tpval, void *data) {
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
   const char* trace_path = tracearg_path(trace_arg);
 
-  if (rejected_path(trace_path, config->blacklist)) return;
+  if (rejected_path(trace_path, config)) return;
 
   rs_tracepoint_t trace_values = extract_full_tracevals(trace_arg);
-  char* formatted_str = trace_as_csv(trace_values);
-
-  if (config->log != NULL) {
-    fprintf(config->log, "%s\n", formatted_str);
-  } else {
-    fprintf(stderr, "\nERROR: Unable to write to NULL file handle.\n");
-    exit(1);
-  }
-
-  free(formatted_str);
+  trace_as_csv(trace_values, config->csv_buffer, CSV_BUFSIZE);
+  fprintf(config->log, "%s\n", config->csv_buffer);
 }
 
 static void gc_mark(Rotoscope* config) {
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->blacklist);
+  rb_gc_mark(config->csv_buffer);
 }
 
 void dealloc(Rotoscope* config) {
-  if (config->log) fclose(config->log);
-  free(config);
+  if (config->log) {
+    fclose(config->log);
+    config->log = NULL;
+  }
+
+  xfree(config->csv_buffer);
+  xfree(config);
 }
 
-static VALUE alloc(VALUE klass) {
-  Rotoscope* config;
-  return Data_Make_Struct(klass, Rotoscope, gc_mark, dealloc, config);
+static VALUE alloc(VALUE self) {
+  Rotoscope* config = ALLOC(Rotoscope);
+  config->csv_buffer = ALLOC_N(char, CSV_BUFSIZE);
+  return Data_Wrap_Struct(self, gc_mark, dealloc, config);
 }
 
 static Rotoscope* get_config(VALUE self) {
@@ -133,10 +118,10 @@ VALUE initialize(int argc, VALUE* argv, VALUE self) {
 
   rb_scan_args(argc, argv, "11", &output_path, &config->blacklist);
   if (NIL_P(config->blacklist)) config->blacklist = rb_ary_new();
-
   Check_Type(config->blacklist, T_ARRAY);
-  Check_Type(output_path, T_STRING);
+  config->blacklist_size = RARRAY_LEN(config->blacklist);
 
+  Check_Type(output_path, T_STRING);
   const char* path = RSTRING_PTR(output_path);
   config->log = fopen(path, "a");
   if (config->log == NULL) {
