@@ -31,8 +31,12 @@ static bool rejected_path(const char* path, VALUE blacklist) {
   char *blacklist_path;
   Check_Type(blacklist, T_ARRAY);
 
+  // Is RARRAY_LEN expensive at all? Could you cache RARRAY_LEN somewhere in your `config` struct?
   for (i=0; i < RARRAY_LEN(blacklist); i++) {
     blacklist_path = RSTRING_PTR(RARRAY_AREF(blacklist, i));
+    // should be no need to call strlen here, this is one of the things that strstr checks for (at least the
+    // implementation I saw ensures that haystack is at least as long as needle.
+    // https://fossies.org/dox/glibc-2.24/string_2strstr_8c_source.html
     if (strlen(path) < strlen(blacklist_path)) continue;
     if (strstr(path, RSTRING_PTR(RARRAY_AREF(blacklist, i)))) return true;
   }
@@ -47,6 +51,8 @@ int format_for_csv(char* buffer, size_t size, rs_tracepoint_t trace) {
 
 static char* trace_as_csv(rs_tracepoint_t trace) {
   int result;
+  // Allocating in every event_hook seems expensive? Could you allocate a buffer of MAX_CSV_BUFSIZE in your config
+  // object and reuse that chunk of memory each time? I might be missing some sublety here though
   char *buf = ALLOC_N(char, MIN_CSV_BUFSIZE);
   result = format_for_csv(buf, MIN_CSV_BUFSIZE, trace);
 
@@ -99,6 +105,8 @@ static void event_hook(VALUE tpval, void *data) {
   if (config->log != NULL) {
     fprintf(config->log, "%s\n", formatted_str);
   } else {
+    // This feels pretty defensive, have you seen the file handle go away after ensuring that you have one in
+    // initialize?
     fprintf(stderr, "\nERROR: Unable to write to NULL file handle.\n");
     exit(1);
   }
@@ -112,6 +120,8 @@ static void gc_mark(Rotoscope* config) {
 }
 
 void dealloc(Rotoscope* config) {
+  // Not sure if dealloc can be called twice, but I think you should probably NULL out config->log after calling
+  // fclose otherwise you might have issues if you try to call fclose on an already closed handle.
   if (config->log) fclose(config->log);
   free(config);
 }
@@ -170,6 +180,8 @@ VALUE rotoscope_trace(VALUE self) {
 void Init_rotoscope(void) {
   VALUE cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, alloc);
+  // Curious why the fourth arg here is -1? From what I can find, the last arg should indicate the number of arguments
+  // the method takes. Is this a way of indicating that it takes variable arguments?
   rb_define_method(cRotoscope, "initialize", initialize, -1);
   rb_define_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
   rb_define_method(cRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
