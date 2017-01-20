@@ -3,8 +3,7 @@
 
 #define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
-#define MIN_CSV_BUFSIZE 150
-#define MAX_CSV_BUFSIZE 500
+#define CSV_BUFSIZE 500
 
 typedef enum { false, true } bool;
 
@@ -20,6 +19,8 @@ typedef struct {
   FILE* log;
   VALUE tracepoint;
   VALUE blacklist;
+  long blacklist_size;
+  char* csv_buffer;
 } Rotoscope;
 
 #endif
