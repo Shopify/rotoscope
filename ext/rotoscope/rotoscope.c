@@ -23,7 +23,7 @@ static const char* evflag2name(rb_event_flag_t evflag) {
 
 static char* class2str(VALUE klass) {
   VALUE cached_lookup = rb_class_path_cached(klass);
-  if (NIL_P(cached_lookup) || strncmp(RSTRING_PTR(cached_lookup), "Class", 5)) return RSTRING_PTR(rb_class_name(klass));
+  if (NIL_P(cached_lookup) || strncmp(RSTRING_PTR(cached_lookup), "Class", 5) == 0) return RSTRING_PTR(rb_class_name(klass));
   else return RSTRING_PTR(cached_lookup);
 }
 
