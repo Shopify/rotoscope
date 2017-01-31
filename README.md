@@ -6,7 +6,7 @@ Rotoscope performs introspection of method calls in Ruby programs.
 
 ```ruby
 require 'rotoscope'
-OUTPUT_PATH = File.join(Rails.root, 'logs/trace.log')
+OUTPUT_PATH = File.join(Rails.root, 'logs/trace.log.gz')
 
 class Dog
   def bark
