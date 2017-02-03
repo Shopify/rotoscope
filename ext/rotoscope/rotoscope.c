@@ -3,19 +3,22 @@
 #include "ruby/intern.h"
 #include <stdio.h>
 #include <errno.h>
+#include <stdbool.h>
 #include "rotoscope.h"
 #include "zlib.h"
+
+static int write_csv_header(gzFile* log) {
+  return gzprintf(*log, RS_CSV_HEADER);
+}
 
 static const char* evflag2name(rb_event_flag_t evflag) {
   switch(evflag) {
     case RUBY_EVENT_CALL:
-      return "call";
     case RUBY_EVENT_C_CALL:
-      return "c_call";
+      return "call";
     case RUBY_EVENT_RETURN:
-      return "return";
     case RUBY_EVENT_C_RETURN:
-      return "c_return";
+      return "return";
     default:
       return "unknown";
   }
@@ -69,16 +72,15 @@ static void event_hook(VALUE tpval, void *data) {
   if (rejected_path(trace_path, config)) return;
 
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg);
-  gzprintf(config->log, "%s,\"%s\",\"%s\",\"%s\",%d\n",
-    trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno);
+  gzprintf(config->log, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
 }
 
-static void gc_mark(Rotoscope* config) {
+static void rs_gc_mark(Rotoscope* config) {
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->blacklist);
 }
 
-void dealloc(Rotoscope* config) {
+void rs_dealloc(Rotoscope* config) {
   if (config->log) {
     gzclose(config->log);
     config->log = NULL;
@@ -87,9 +89,9 @@ void dealloc(Rotoscope* config) {
   free(config);
 }
 
-static VALUE alloc(VALUE klass) {
+static VALUE rs_alloc(VALUE klass) {
   Rotoscope* config;
-  return Data_Make_Struct(klass, Rotoscope, gc_mark, dealloc, config);
+  return Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
 }
 
 static Rotoscope* get_config(VALUE self) {
@@ -109,11 +111,13 @@ VALUE initialize(int argc, VALUE* argv, VALUE self) {
 
   Check_Type(output_path, T_STRING);
   const char* path = RSTRING_PTR(output_path);
-  config->log = gzopen(path, "a");
+  config->log = gzopen(path, "w");
   if (config->log == NULL) {
     fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n", path, strerror(errno));
     exit(1);
   }
+
+  write_csv_header(&config->log);
 
   return self;
 }
@@ -140,7 +144,7 @@ VALUE rotoscope_trace(VALUE self) {
 
 void Init_rotoscope(void) {
   VALUE cRotoscope = rb_define_class("Rotoscope", rb_cObject);
-  rb_define_alloc_func(cRotoscope, alloc);
+  rb_define_alloc_func(cRotoscope, rs_alloc);
   rb_define_method(cRotoscope, "initialize", initialize, -1);
   rb_define_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
   rb_define_method(cRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
