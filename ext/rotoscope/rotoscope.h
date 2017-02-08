@@ -8,7 +8,7 @@
 #define RS_CSV_HEADER "event,entity,method_name,method_level,filepath,lineno\n"
 #define RS_CSV_FORMAT "%s,\"%s\",\"%s\",%s,\"%s\",%d\n"
 
-#define CLASS_METHOD "class"
+#define SINGLETON_METHOD "singleton"
 #define INSTANCE_METHOD "instance"
 
 typedef struct {
@@ -28,5 +28,10 @@ typedef struct {
   VALUE blacklist;
   unsigned long blacklist_size;
 } Rotoscope;
+
+typedef struct {
+  const char* name;
+  const char* method_level;
+} rs_class_desc_t;
 
 #endif
