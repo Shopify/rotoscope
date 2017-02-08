@@ -102,17 +102,20 @@ static void event_hook(VALUE tpval, void *data) {
   gzprintf(config->log, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
 }
 
+static void close_gz_handle(Rotoscope* config) {
+  if (config->log) {
+    gzclose(config->log);
+    config->log = NULL;
+  }
+}
+
 static void rs_gc_mark(Rotoscope* config) {
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->blacklist);
 }
 
 void rs_dealloc(Rotoscope* config) {
-  if (config->log) {
-    gzclose(config->log);
-    config->log = NULL;
-  }
-
+  close_gz_handle(config);
   free(config);
 }
 
@@ -170,6 +173,12 @@ VALUE rotoscope_mark(VALUE self) {
   return Qnil;
 }
 
+VALUE rotoscope_close(VALUE self) {
+  Rotoscope* config = get_config(self);
+  close_gz_handle(config);
+  return Qnil;
+}
+
 VALUE rotoscope_trace(VALUE self) {
   rotoscope_start_trace(self);
   return rb_ensure(rb_yield, Qundef, rotoscope_stop_trace, self);
@@ -181,6 +190,7 @@ void Init_rotoscope(void) {
   rb_define_method(cRotoscope, "initialize", initialize, -1);
   rb_define_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
   rb_define_method(cRotoscope, "mark", (VALUE(*)(ANYARGS))rotoscope_mark, 0);
+  rb_define_method(cRotoscope, "close", (VALUE(*)(ANYARGS))rotoscope_close, 0);
   rb_define_method(cRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
   rb_define_method(cRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
 }
