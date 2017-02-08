@@ -24,12 +24,6 @@ static const char* evflag2name(rb_event_flag_t evflag) {
   }
 }
 
-static char* class2str(VALUE klass) {
-  VALUE cached_lookup = rb_class_path_cached(klass);
-  if (NIL_P(cached_lookup) || strncmp(RSTRING_PTR(cached_lookup), "Class", 5) == 0) return RSTRING_PTR(rb_class_name(klass));
-  else return RSTRING_PTR(cached_lookup);
-}
-
 static bool rejected_path(const char* path, Rotoscope* config) {
   unsigned long i;
   Check_Type(config->blacklist, T_ARRAY);
@@ -42,25 +36,58 @@ static bool rejected_path(const char* path, Rotoscope* config) {
   return false;
 }
 
+static char* class2str(VALUE klass) {
+  VALUE cached_lookup = rb_class_path_cached(klass);
+  if (NIL_P(cached_lookup)) {
+    // most likely a singleton/anonymous class
+    return RSTRING_PTR(rb_any_to_s(klass));
+  }
+  return RSTRING_PTR(cached_lookup);
+}
+
 static const char* tracearg_path(rb_trace_arg_t *trace_arg) {
   VALUE path = rb_tracearg_path(trace_arg);
   return RTEST(path) ? RSTRING_PTR(path) : "";
 }
 
-static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t* trace_arg) {
+static char* tracearg_class(rb_trace_arg_t *trace_arg) {
+  VALUE klass;
   VALUE self = rb_tracearg_self(trace_arg);
 
-  VALUE klass = (RB_TYPE_P(self, T_OBJECT) || RB_TYPE_P(self, T_CLASS) || RB_TYPE_P(self, T_MODULE)) ?
-    RBASIC_CLASS(self) :
-    rb_tracearg_defined_class(trace_arg);
-  const char *method_owner = class2str(klass);
+  if (RB_TYPE_P(self, T_MODULE) || RB_TYPE_P(self, T_OBJECT) || RB_TYPE_P(self, T_CLASS)) {
+    klass = RBASIC_CLASS(self);
+  } else {
+    klass = rb_tracearg_defined_class(trace_arg);
+  }
+
+  return class2str(klass);
+}
+
+static bool is_singleton_class(char* klass) {
+  return strncmp(klass, "#<Class:", 8) == 0;
+}
+
+// Convert singleton #<Class:Foo> to Foo
+static void trim_singleton_formatting(char* klass) {
+  if (is_singleton_class(klass)) {
+    size_t orig_length = strlen(klass);
+    memmove(klass + orig_length - 1, "\0", 1);
+    memmove(klass, klass+8, orig_length-8);
+  }
+}
+
+static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t* trace_arg) {
+  char *method_owner = tracearg_class(trace_arg);
+  const char *method_level = is_singleton_class(method_owner) ? CLASS_METHOD : INSTANCE_METHOD;
+  trim_singleton_formatting(method_owner);
 
   return (rs_tracepoint_t) {
     .event = evflag2name(rb_tracearg_event_flag(trace_arg)),
+    .entity = method_owner,
     .method_name = RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg))),
-    .method_owner = method_owner,
     .filepath = tracearg_path(trace_arg),
-    .lineno = FIX2INT(rb_tracearg_lineno(trace_arg))
+    .lineno = FIX2INT(rb_tracearg_lineno(trace_arg)),
+    .method_level = method_level
   };
 }
 
@@ -137,6 +164,12 @@ VALUE rotoscope_stop_trace(VALUE self) {
   return Qnil;
 }
 
+VALUE rotoscope_mark(VALUE self) {
+  Rotoscope* config = get_config(self);
+  gzprintf(config->log, "---\n");
+  return Qnil;
+}
+
 VALUE rotoscope_trace(VALUE self) {
   rotoscope_start_trace(self);
   return rb_ensure(rb_yield, Qundef, rotoscope_stop_trace, self);
@@ -147,6 +180,7 @@ void Init_rotoscope(void) {
   rb_define_alloc_func(cRotoscope, rs_alloc);
   rb_define_method(cRotoscope, "initialize", initialize, -1);
   rb_define_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
+  rb_define_method(cRotoscope, "mark", (VALUE(*)(ANYARGS))rotoscope_mark, 0);
   rb_define_method(cRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
   rb_define_method(cRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
 }

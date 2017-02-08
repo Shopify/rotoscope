@@ -6,22 +6,27 @@ Rotoscope performs introspection of method calls in Ruby programs.
 
 ```ruby
 require 'rotoscope'
-OUTPUT_PATH = File.join(Rails.root, 'logs/trace.log.gz')
 
 class Dog
   def bark
-    make_sound('woof!')
+    Noisemaker.speak('woof!')
   end
 end
 
-def make_sound(sound)
-  puts sound
+class Noisemaker
+  def self.speak(str)
+    puts(str)
+  end
 end
 
-Rotoscope.trace(OUTPUT_PATH) do
+gzip_file = File.expand_path('dog_trace.log.gz')
+puts "Writing to #{gzip_file}..."
+
+Rotoscope.trace(gzip_file) do
   dog1 = Dog.new
   dog1.bark
 end
+
 ```
 
 The resulting method calls are saved in the specified `output_path` in the order they were received.
@@ -29,22 +34,24 @@ The resulting method calls are saved in the specified `output_path` in the order
 Sample output:
 
 ```
-c_call,"Class","new","test.rb",16
-c_call,"Dog","initialize","test.rb",16
-c_return,"Dog","initialize","test.rb",16
-c_return,"Class","new","test.rb",16
-call,"Dog","bark","test.rb",4
-call,"Dog","make_sound","test.rb",9
-c_call,"Dog","puts","test.rb",10
-c_call,"IO","puts","test.rb",10
-c_call,"IO","write","test.rb",10
-c_return,"IO","write","test.rb",10
-c_call,"IO","write","test.rb",10
-c_return,"IO","write","test.rb",10
-c_return,"IO","puts","test.rb",10
-c_return,"Dog","puts","test.rb",10
-return,"Dog","make_sound","test.rb",11
-return,"Dog","bark","test.rb",6
+event,entity,method_name,method_level,filepath,lineno
+call,"Dog","new",class,"example/dog.rb",19
+call,"Dog","initialize",instance,"example/dog.rb",19
+return,"Dog","initialize",instance,"example/dog.rb",19
+return,"Dog","new",class,"example/dog.rb",19
+call,"Dog","bark",instance,"example/dog.rb",4
+call,"Noisemaker","speak",class,"example/dog.rb",10
+call,"Noisemaker","puts",class,"example/dog.rb",11
+call,"IO","puts",instance,"example/dog.rb",11
+call,"IO","write",instance,"example/dog.rb",11
+return,"IO","write",instance,"example/dog.rb",11
+call,"IO","write",instance,"example/dog.rb",11
+return,"IO","write",instance,"example/dog.rb",11
+return,"IO","puts",instance,"example/dog.rb",11
+return,"Noisemaker","puts",class,"example/dog.rb",11
+return,"Noisemaker","speak",class,"example/dog.rb",12
+return,"Dog","bark",instance,"example/dog.rb",6
+
 ```
 
 ## API

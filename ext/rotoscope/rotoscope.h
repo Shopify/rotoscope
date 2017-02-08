@@ -4,14 +4,18 @@
 #define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
 
-#define RS_CSV_VALUES(trace) trace.event, trace.method_owner, trace.method_name, trace.filepath, trace.lineno
-#define RS_CSV_HEADER "event,method_owner,method_name,filepath,lineno\n"
-#define RS_CSV_FORMAT "%s,\"%s\",\"%s\",\"%s\",%d\n"
+#define RS_CSV_VALUES(trace) trace.event, trace.entity, trace.method_name, trace.method_level, trace.filepath, trace.lineno
+#define RS_CSV_HEADER "event,entity,method_name,method_level,filepath,lineno\n"
+#define RS_CSV_FORMAT "%s,\"%s\",\"%s\",%s,\"%s\",%d\n"
+
+#define CLASS_METHOD "class"
+#define INSTANCE_METHOD "instance"
 
 typedef struct {
   const char* event;
   const char* method_name;
-  const char* method_owner;
+  const char* entity;
+  const char* method_level;
   const char* filepath;
   unsigned int lineno;
 } rs_tracepoint_t;
