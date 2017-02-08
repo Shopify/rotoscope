@@ -16,6 +16,18 @@ Rake::ExtensionTask.new('rotoscope', GEMSPEC) do |ext|
   ext.lib_dir = 'lib/rotoscope'
 end
 
-task :install => [:compile] do |t|
+task :build => :compile
+
+task :install => [:build] do |t|
   sh "gem build rotoscope.gemspec && gem install rotoscope-*.gem"
 end
+
+# ==========================================================
+# Testing
+# ==========================================================
+
+require 'rake/testtask'
+Rake::TestTask.new 'test' do |t|
+  t.test_files = FileList['test/*_test.rb']
+end
+task :test => :build

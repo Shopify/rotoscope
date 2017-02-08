@@ -29,4 +29,9 @@ typedef struct {
   unsigned long blacklist_size;
 } Rotoscope;
 
+typedef struct {
+  const char* name;
+  const char* method_level;
+} rs_class_desc;
+
 #endif
