@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 Gem::Specification.new do |s|
   s.name        = 'rotoscope'
   s.version     = '0.1.0'
@@ -13,7 +14,7 @@ Gem::Specification.new do |s|
 
   s.files       = `git ls-files`.split("\n")
   s.required_ruby_version = ">= 2.2.0"
-  s.extensions = %w[ext/rotoscope/extconf.rb]
+  s.extensions = %w(ext/rotoscope/extconf.rb)
 
   s.add_development_dependency 'rake-compiler', '~> 0.9'
   s.add_development_dependency 'mocha', '~> 0.14'
