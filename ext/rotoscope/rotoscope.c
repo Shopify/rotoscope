@@ -49,16 +49,14 @@ static char* singleton2str(VALUE klass) {
     return RSTRING_PTR(name);
   } else {
     // singleton of an instance
+    VALUE real_klass;
     VALUE ancestors = rb_mod_ancestors(klass);
-    if (RARRAY_LEN(ancestors) > 0) {
-      VALUE real_klass = rb_ary_entry(ancestors, 1);
-      if (RTEST(real_klass)) {
-        VALUE cached_lookup = rb_class_path_cached(real_klass);
-        if (RTEST(cached_lookup)) {
-          return RSTRING_PTR(cached_lookup);
-        } else {
-          return RSTRING_PTR(rb_class_name(real_klass));
-        }
+    if (RARRAY_LEN(ancestors) > 0 && !NIL_P(real_klass = rb_ary_entry(ancestors, 1))) {
+      VALUE cached_lookup = rb_class_path_cached(real_klass);
+      if (RTEST(cached_lookup)) {
+        return RSTRING_PTR(cached_lookup);
+      } else {
+        return RSTRING_PTR(rb_class_name(real_klass));
       }
     }
     // fallback in case we can't come up with a name
