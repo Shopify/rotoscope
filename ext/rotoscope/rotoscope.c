@@ -8,6 +8,7 @@
 #include "zlib.h"
 
 VALUE cRotoscope;
+
 // recursive with singleton2str
 static rs_class_desc_t class2str(VALUE klass);
 
@@ -45,19 +46,28 @@ static bool rejected_path(const char *path, Rotoscope *config)
   return false;
 }
 
+static VALUE class_of_singleton(VALUE klass)
+{
+  return rb_iv_get(klass, "__attached__");
+}
+
+static bool is_class_singleton(VALUE klass)
+{
+  VALUE obj = class_of_singleton(klass);
+  return (RB_TYPE_P(obj, T_MODULE) || RB_TYPE_P(obj, T_CLASS));
+}
+
 static char *singleton2str(VALUE klass)
 {
-  VALUE obj = rb_iv_get(klass, "__attached__");
-  if (RB_TYPE_P(obj, T_MODULE) || RB_TYPE_P(obj, T_CLASS))
+  if (is_class_singleton(klass))
   {
-    // singleton of a class
+    VALUE obj = class_of_singleton(klass);
     VALUE cached_lookup = rb_class_path_cached(obj);
     VALUE name = (NIL_P(cached_lookup)) ? rb_class_name(obj) : cached_lookup;
     return RSTRING_PTR(name);
   }
-  else
+  else // singleton of an instance
   {
-    // singleton of an instance
     VALUE real_klass;
     VALUE ancestors = rb_mod_ancestors(klass);
     if (RARRAY_LEN(ancestors) > 0 && !NIL_P(real_klass = rb_ary_entry(ancestors, 1)))
@@ -92,8 +102,11 @@ static rs_class_desc_t class2str(VALUE klass)
   {
     if (FL_TEST(klass, FL_SINGLETON))
     {
-      real_class.method_level = SINGLETON_METHOD;
       real_class.name = singleton2str(klass);
+      if (is_class_singleton(klass))
+      {
+        real_class.method_level = CLASS_METHOD;
+      }
     }
     else
     {
@@ -104,10 +117,51 @@ static rs_class_desc_t class2str(VALUE klass)
   return real_class;
 }
 
-static const char *tracearg_path(rb_trace_arg_t *trace_arg)
+static char *caller_location(int start)
 {
-  VALUE path = rb_tracearg_path(trace_arg);
-  return RTEST(path) ? RSTRING_PTR(path) : "";
+  VALUE argv[2] = {INT2NUM(start), INT2NUM(1)};
+  VALUE res = rb_funcallv(rb_mKernel, rb_intern("caller_locations"), 2, argv);
+  return RSTRING_PTR(rb_inspect(rb_ary_entry(res, 0)));
+}
+
+static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg)
+{
+  rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
+  rs_callsite_t callsite;
+
+  VALUE path;
+  char *endptr;
+  char *caller_str = NULL;
+
+  switch (event_flag)
+  {
+  case RUBY_EVENT_C_CALL:
+    path = rb_tracearg_path(trace_arg);
+    callsite.filepath = RTEST(path) ? RSTRING_PTR(path) : "";
+    callsite.lineno = FIX2INT(rb_tracearg_lineno(trace_arg));
+    break;
+  case RUBY_EVENT_C_RETURN:
+    caller_str = caller_location(0) + 1; // +1 to drop opening quote
+  // drop down to default on purpose
+  default:
+    caller_str = (caller_str == NULL) ? (caller_location(1) + 1) : caller_str;
+    if (caller_str != NULL)
+    {
+      char *data = strdup(caller_str);
+      callsite.filepath = strtok(data, ":");
+      caller_str = strtok(NULL, ":");
+      if (caller_str)
+      {
+        callsite.lineno = (unsigned int)strtol(caller_str, &endptr, 10);
+      }
+    }
+    else
+    {
+      callsite.filepath = UNKNOWN_FILE_PATH;
+    }
+  }
+
+  return callsite;
 }
 
 static rs_class_desc_t tracearg_class(rb_trace_arg_t *trace_arg)
@@ -127,17 +181,23 @@ static rs_class_desc_t tracearg_class(rb_trace_arg_t *trace_arg)
   return class2str(klass);
 }
 
-static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg)
+static char *tracearg_method_name(rb_trace_arg_t *trace_arg)
+{
+  return RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg)));
+}
+
+static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg, const rs_callsite_t *callsite)
 {
   rs_class_desc_t method_owner = tracearg_class(trace_arg);
+  rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
 
   return (rs_tracepoint_t){
-      .event = evflag2name(rb_tracearg_event_flag(trace_arg)),
+      .event = evflag2name(event_flag),
       .entity = method_owner.name,
-      .method_name = RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg))),
-      .filepath = tracearg_path(trace_arg),
-      .lineno = FIX2INT(rb_tracearg_lineno(trace_arg)),
-      .method_level = method_owner.method_level};
+      .method_name = tracearg_method_name(trace_arg),
+      .method_level = method_owner.method_level,
+      .filepath = callsite->filepath,
+      .lineno = callsite->lineno};
 }
 
 static bool in_fork(Rotoscope *config)
@@ -149,18 +209,19 @@ static void event_hook(VALUE tpval, void *data)
 {
   Rotoscope *config = (Rotoscope *)data;
 
-  if (in_fork(config)) {
+  if (in_fork(config))
+  {
     rb_tracepoint_disable(config->tracepoint);
     return;
   }
 
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
-  const char *trace_path = tracearg_path(trace_arg);
+  rs_callsite_t trace_path = tracearg_path(trace_arg);
 
-  if (rejected_path(trace_path, config))
+  if (rejected_path(trace_path.filepath, config))
     return;
 
-  rs_tracepoint_t trace = extract_full_tracevals(trace_arg);
+  rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
   gzprintf(config->log, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
 }
 
@@ -168,7 +229,8 @@ static void close_gz_handle(Rotoscope *config)
 {
   if (config->log)
   {
-    if (!in_fork(config)) {
+    if (!in_fork(config))
+    {
       gzclose(config->log);
     }
     config->log = NULL;
@@ -241,13 +303,15 @@ VALUE rotoscope_stop_trace(VALUE self)
   {
     rb_tracepoint_disable(config->tracepoint);
   }
+
   return Qnil;
 }
 
 VALUE rotoscope_mark(VALUE self)
 {
   Rotoscope *config = get_config(self);
-  if (!in_fork(config)) {
+  if (!in_fork(config))
+  {
     gzprintf(config->log, "---\n");
   }
   return Qnil;

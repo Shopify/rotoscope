@@ -10,8 +10,10 @@
 #define RS_CSV_HEADER "event,entity,method_name,method_level,filepath,lineno\n"
 #define RS_CSV_FORMAT "%s,\"%s\",\"%s\",%s,\"%s\",%d\n"
 
-#define SINGLETON_METHOD "singleton"
+#define CLASS_METHOD "class"
 #define INSTANCE_METHOD "instance"
+
+#define UNKNOWN_FILE_PATH "Unknown"
 
 typedef struct
 {
@@ -39,5 +41,11 @@ typedef struct
   const char *name;
   const char *method_level;
 } rs_class_desc_t;
+
+typedef struct
+{
+  const char *filepath;
+  unsigned int lineno;
+} rs_callsite_t;
 
 #endif
