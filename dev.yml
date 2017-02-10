@@ -1,0 +1,9 @@
+---
+name: rotoscope
+up:
+  - ruby: 2.3.3
+  - bundler
+
+commands:
+  build: bundle exec rake build
+  test: bundle exec rake test
