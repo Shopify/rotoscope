@@ -54,7 +54,6 @@ static char *singleton2str(VALUE klass)
     VALUE cached_lookup = rb_class_path_cached(obj);
     VALUE name = (NIL_P(cached_lookup)) ? rb_class_name(obj) : cached_lookup;
     return RSTRING_PTR(name);
-    �
   }
   else
   {
