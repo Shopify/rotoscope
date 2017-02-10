@@ -1,7 +1,7 @@
 #ifndef _INC_ROTOSCOPE_H_
 #define _INC_ROTOSCOPE_H_
 
-#define EVENT_CALL   (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
+#define EVENT_CALL (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
 
 #define RS_CSV_VALUES(trace) trace.event, trace.entity, trace.method_name, trace.method_level, trace.filepath, trace.lineno
@@ -11,27 +11,30 @@
 #define SINGLETON_METHOD "singleton"
 #define INSTANCE_METHOD "instance"
 
-typedef struct {
-  const char* event;
-  const char* method_name;
-  const char* entity;
-  const char* method_level;
-  const char* filepath;
+typedef struct
+{
+  const char *event;
+  const char *method_name;
+  const char *entity;
+  const char *method_level;
+  const char *filepath;
   unsigned int lineno;
 } rs_tracepoint_t;
 
 #include "zlib.h"
 
-typedef struct {
+typedef struct
+{
   gzFile log;
   VALUE tracepoint;
   VALUE blacklist;
   unsigned long blacklist_size;
 } Rotoscope;
 
-typedef struct {
-  const char* name;
-  const char* method_level;
+typedef struct
+{
+  const char *name;
+  const char *method_level;
 } rs_class_desc_t;
 
 #endif
