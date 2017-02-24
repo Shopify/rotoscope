@@ -1,6 +1,8 @@
 #ifndef _INC_ROTOSCOPE_H_
 #define _INC_ROTOSCOPE_H_
 
+#include "unistd.h"
+
 #define EVENT_CALL (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
 
@@ -29,6 +31,7 @@ typedef struct
   VALUE tracepoint;
   VALUE blacklist;
   unsigned long blacklist_size;
+  pid_t pid;
 } Rotoscope;
 
 typedef struct
