@@ -140,9 +140,20 @@ static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg)
       .method_level = method_owner.method_level};
 }
 
+static bool in_fork(Rotoscope *config)
+{
+  return config->pid != getpid();
+}
+
 static void event_hook(VALUE tpval, void *data)
 {
   Rotoscope *config = (Rotoscope *)data;
+
+  if (in_fork(config)) {
+    rb_tracepoint_disable(config->tracepoint);
+    return;
+  }
+
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
   const char *trace_path = tracearg_path(trace_arg);
 
@@ -157,7 +168,9 @@ static void close_gz_handle(Rotoscope *config)
 {
   if (config->log)
   {
-    gzclose(config->log);
+    if (!in_fork(config)) {
+      gzclose(config->log);
+    }
     config->log = NULL;
   }
 }
@@ -197,6 +210,7 @@ VALUE initialize(int argc, VALUE *argv, VALUE self)
     config->blacklist = rb_ary_new();
   Check_Type(config->blacklist, T_ARRAY);
   config->blacklist_size = RARRAY_LEN(config->blacklist);
+  config->pid = getpid();
 
   Check_Type(output_path, T_STRING);
   const char *path = RSTRING_PTR(output_path);
@@ -233,7 +247,9 @@ VALUE rotoscope_stop_trace(VALUE self)
 VALUE rotoscope_mark(VALUE self)
 {
   Rotoscope *config = get_config(self);
-  gzprintf(config->log, "---\n");
+  if (!in_fork(config)) {
+    gzprintf(config->log, "---\n");
+  }
   return Qnil;
 }
 VALUE rotoscope_close(VALUE self)

@@ -86,6 +86,26 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
+  def test_ignore_writes_in_fork
+    contents = rotoscope_trace do |rotoscope|
+      fork do
+        Example.singleton_method
+        rotoscope.mark
+        rotoscope.close
+      end
+      Example.singleton_method
+      Process.wait
+    end
+    assert_equal [
+      { event: "call", entity: "RotoscopeTest", method_name: "fork", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "RotoscopeTest", method_name: "fork", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "singleton_method", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "singleton_method", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Process", method_name: "wait", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Process", method_name: "wait", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
   private
 
   def parse_and_normalize(csv_string)
@@ -102,7 +122,7 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def rotoscope_trace(blacklist = [])
-    Rotoscope.trace(@logfile, blacklist) { yield }
+    Rotoscope.trace(@logfile, blacklist) { |rotoscope| yield rotoscope }
     unzip(@logfile)
   end
 
