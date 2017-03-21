@@ -60,6 +60,16 @@ return,"Dog","bark",instance,"example/dog.rb",6
 
 ## API
 
+- [Public Class Methods](#public-class-methods)
+  - [trace](#rotoscopetraceoutput_path-blacklist)
+  - [new](#rotoscopenewoutput_path-blacklist)
+- [Public Instance Methods](#public-instance-methods)
+  - [trace](#rotoscopetraceblock)
+  - [start_trace](#rotoscopestart_trace)
+  - [stop_trace](#rotoscopestop_trace)
+  - [mark](#rotoscopemark)
+  - [close](#rotoscopeclose)
+
 ### Public Class Methods
 
 #### `Rotoscope::trace(output_path, blacklist=[])`
