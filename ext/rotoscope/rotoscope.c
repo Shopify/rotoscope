@@ -128,36 +128,29 @@ static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg)
 {
   rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
   rs_callsite_t callsite;
-
+  callsite.lineno = 0;
   VALUE path;
-  char *endptr;
   char *caller_str = NULL;
 
   switch (event_flag)
   {
   case RUBY_EVENT_C_CALL:
     path = rb_tracearg_path(trace_arg);
-    callsite.filepath = RTEST(path) ? RSTRING_PTR(path) : "";
+    strncpy((char *)callsite.filepath, RTEST(path) ? RSTRING_PTR(path) : "", sizeof(callsite.filepath));
     callsite.lineno = FIX2INT(rb_tracearg_lineno(trace_arg));
     break;
   case RUBY_EVENT_C_RETURN:
     caller_str = caller_location(0) + 1; // +1 to drop opening quote
-  // drop down to default on purpose
+    // drop down to default on purpose
   default:
-    caller_str = (caller_str == NULL) ? (caller_location(1) + 1) : caller_str;
-    if (caller_str != NULL)
+    if (caller_str || (caller_str = (caller_location(1) + 1)))
     {
-      char *data = strdup(caller_str);
-      callsite.filepath = strtok(data, ":");
-      caller_str = strtok(NULL, ":");
-      if (caller_str)
+      strncpy((char *)callsite.filepath, caller_str, sizeof(callsite.filepath));
+      strtok((char *)callsite.filepath, ":");
+      if (caller_str = strtok(NULL, ":"))
       {
-        callsite.lineno = (unsigned int)strtol(caller_str, &endptr, 10);
+        callsite.lineno = (unsigned int)strtoul(caller_str, NULL, 10);
       }
-    }
-    else
-    {
-      callsite.filepath = UNKNOWN_FILE_PATH;
     }
   }
 

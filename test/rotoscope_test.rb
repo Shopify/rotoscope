@@ -44,7 +44,7 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def teardown
-    # FileUtils.remove_file(@logfile)
+    FileUtils.remove_file(@logfile)
   end
 
   def test_instance_method
