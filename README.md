@@ -2,6 +2,10 @@
 
 Rotoscope performs introspection of method calls in Ruby programs.
 
+## Status &nbsp; ![status](https://circleci.com/gh/Shopify/rotoscope/tree/master.svg?style=shield&circle-token=cddbd315df7a81ab944adf4dfc14a5800cd589fc)
+
+Alpha!
+
 ## Example
 
 ```ruby
@@ -103,11 +107,37 @@ rs.stop_trace
 
 #### `Rotoscope#stop_trace`
 
-Stops writing method calls and returns to the `output_path`.
+Stops writing method invocations to the `output_path`. Subsequent calls to `Rotoscope#start_trace` may be invoked to resume tracing.
 
 ```ruby
 rs = Rotoscope.new(output_path)
 rs.start_trace
 # code to trace...
+rs.stop_trace
+```
+
+#### `Rotoscope#mark`
+
+ Inserts a marker '---' to divide output. Useful for segmenting multiple blocks of code that are being profiled.
+
+```ruby
+rs = Rotoscope.new(output_path)
+rs.start_trace
+# code to trace...
+rs.mark
+# more code ...
+rs.stop_trace
+```
+
+#### `Rotoscope#close`
+
+Flushes the buffer and closes the file handle. Once this is invoked, no more writes can be performed on the `Rotoscope` object.
+
+```ruby
+rs = Rotoscope.new(output_path)
+rs.start_trace
+# code to trace...
+rs.close
+# more code ...
 rs.stop_trace
 ```
