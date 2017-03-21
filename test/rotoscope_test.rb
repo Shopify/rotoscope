@@ -1,10 +1,14 @@
 # frozen_string_literal: true
 $LOAD_PATH.unshift File.expand_path('../../lib', __FILE__)
+$LOAD_PATH.unshift File.expand_path('../', __FILE__)
 require 'rotoscope'
 require 'minitest/autorun'
 require 'zlib'
 require 'fileutils'
 require 'csv'
+
+require 'fixture_inner'
+require 'fixture_outer'
 
 class Example
   class << self
@@ -31,6 +35,8 @@ class Example
 end
 
 ROOT_FIXTURE_PATH = File.expand_path('../', __FILE__)
+INNER_FIXTURE_PATH = File.expand_path('../fixture_inner.rb', __FILE__)
+OUTER_FIXTURE_PATH = File.expand_path('../fixture_outer.rb', __FILE__)
 
 class RotoscopeTest < MiniTest::Test
   def setup
@@ -38,16 +44,16 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def teardown
-    # FileUtils.remove_file(@logfile)
+    FileUtils.remove_file(@logfile)
   end
 
   def test_instance_method
     contents = rotoscope_trace { Example.new.normal_method }
     assert_equal [
-      { event: "call", entity: "Example", method_name: "new", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "call", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "Example", method_name: "new", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "call", entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 }
     ], parse_and_normalize(contents)
@@ -63,8 +69,8 @@ class RotoscopeTest < MiniTest::Test
   def test_formats_singletons_of_a_class
     contents = rotoscope_trace { Example.singleton_method }
     assert_equal [
-      { event: "call", entity: "Example", method_name: "singleton_method", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "Example", method_name: "singleton_method", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 }
+      { event: "call", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 }
     ], parse_and_normalize(contents)
 
     assert_frames_consistent contents
@@ -73,14 +79,32 @@ class RotoscopeTest < MiniTest::Test
   def test_formats_singletons_of_an_instance
     contents = rotoscope_trace { Example.new.singleton_class.singleton_method }
     assert_equal [
-      { event: "call", entity: "Example", method_name: "new", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "call", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "Example", method_name: "new", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "call", entity: "Example", method_name: "singleton_class", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "Example", method_name: "singleton_class", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "call", entity: "Example", method_name: "singleton_method", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "Example", method_name: "singleton_method", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "singleton_class", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
+  def test_ignores_calls_if_blacklisted
+    contents = rotoscope_trace([INNER_FIXTURE_PATH, OUTER_FIXTURE_PATH]) do
+      foo = FixtureOuter.new
+      foo.do_work
+    end
+
+    assert_equal [
+      { event: "call", entity: "FixtureOuter", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "FixtureOuter", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "FixtureOuter", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "FixtureOuter", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "FixtureOuter", method_name: "do_work", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "FixtureOuter", method_name: "do_work", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
     ], parse_and_normalize(contents)
 
     assert_frames_consistent contents
@@ -99,10 +123,10 @@ class RotoscopeTest < MiniTest::Test
     assert_equal [
       { event: "call", entity: "RotoscopeTest", method_name: "fork", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "RotoscopeTest", method_name: "fork", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "call", entity: "Example", method_name: "singleton_method", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "Example", method_name: "singleton_method", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "call", entity: "Process", method_name: "wait", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "Process", method_name: "wait", method_level: "singleton", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Process", method_name: "wait", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Process", method_name: "wait", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
     ], parse_and_normalize(contents)
   end
 
