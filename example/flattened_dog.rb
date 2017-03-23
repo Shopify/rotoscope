@@ -1,3 +1,4 @@
+# frozen_string_literal: true
 require 'rotoscope'
 
 class Dog
@@ -12,10 +13,10 @@ class Noisemaker
   end
 end
 
-gzip_file = File.expand_path('dog_trace.log.gz')
-puts "Writing to #{gzip_file}..."
+output_file = File.expand_path('dog_trace.log')
+puts "Writing to #{output_file}..."
 
-Rotoscope.trace(gzip_file, compress: true, flatten: true) do
+Rotoscope.trace(output_file, flatten: true) do
   dog1 = Dog.new
   dog1.bark
 end

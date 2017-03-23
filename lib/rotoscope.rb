@@ -2,50 +2,71 @@
 require 'rotoscope/rotoscope'
 require 'fileutils'
 require 'tempfile'
-require 'zlib'
 require 'csv'
 
 class Rotoscope
   InvalidStateError = Class.new(StandardError)
 
-  def self.trace(output_path, blacklist: [], compress: false, flatten: false)
-    @rs_tmpfile = Tempfile.new("rotoscope_output")
-    rs = new(@rs_tmpfile.path, blacklist)
-    rs.trace { yield rs }
-    rs.close
-
-    out_fh = compress ? Zlib::GzipWriter.open(output_path) : File.new(output_path, 'w')
-    if flatten
-      rs.flatten_into(out_fh)
+  def self.trace(dest, blacklist: [], flatten: false)
+    io_given = false
+    dest_file = if flatten
+      Tempfile.new("rotoscope_output")
+    elsif dest.respond_to?(:to_io)
+      io_given = true
+      dest.to_io
     else
-      IO.copy_stream(@rs_tmpfile.path, out_fh)
+      File.open(dest, 'w')
     end
-    out_fh.close
 
-    @rs_tmpfile.close
-    @rs_tmpfile.unlink
+    begin
+      rs = Rotoscope.new(dest_file.path, blacklist)
+      rs.trace { yield rs }
+    ensure
+      rs.close
+    end
+    rs.flatten(dest) if flatten
     rs
+  ensure
+    unless io_given
+      dest_file.close if dest_file.nil?
+      dest_file.unlink if dest_file.is_a?(Tempfile)
+    end
   end
 
-  def flatten(output_path)
-    File.open(output_path, 'w') do |fh|
-      flatten_into(fh)
+  def flatten(dest)
+    io_given = false
+    dest_file = if dest.respond_to?(:to_io)
+      io_given = true
+      dest.to_io
+    else
+      File.open(dest, 'w')
     end
+
+    flatten_into(dest_file)
+  ensure
+    dest_file.close unless io_given
   end
 
   def closed?
-    state == :RS_CLOSED
+    state == :closed
   end
 
+  def inspect
+    "Rotoscope(state: #{state}, log_path: \"#{short_log_path}\", object_id: #{format('0x00%x', object_id << 1)})"
+  end
+
+  private
+
   Caller = Struct.new(:entity, :method_name)
-  DEFAULT_CALLER = Caller.new('<ROOT>', 'unknown').freeze
+  DEFAULT_CALLER = Rotoscope::Caller.new('<ROOT>', 'unknown').freeze
   CSV_HEADER_FIELDS = %w(entity method_name method_level filepath lineno caller_entity caller_method_name)
 
   def flatten_into(io)
-    raise(Rotoscope::InvalidStateError, "Rotoscope handle must be closed to perform operation") unless closed?
+    raise(Rotoscope::InvalidStateError, "#{inspect} must be closed to perform operation") unless closed?
 
-    io.puts(CSV_HEADER_FIELDS.join(','))
     call_stack = []
+    io.puts(CSV_HEADER_FIELDS.join(','))
+
     CSV.foreach(log_path, headers: true) do |line|
       case line.fetch('event')
       when '---'
@@ -53,16 +74,19 @@ class Rotoscope
       when 'call'
         caller = call_stack.last || DEFAULT_CALLER
         line << { 'caller_entity' => caller.entity, 'caller_method_name' => caller.method_name }
-
+        call_stack << Rotoscope::Caller.new(line.fetch('entity'), line.fetch('method_name'))
         out_str = CSV_HEADER_FIELDS.map { |field| line.fetch(field) }.join(',')
-        call_stack << Caller.new(line.fetch('entity'), line.fetch('method_name'))
         io.puts(out_str)
       when 'return'
-        caller = Caller.new(line.fetch('entity'), line.fetch('method_name'))
-        if call_stack.last == caller
-          call_stack.pop
-        end
+        caller = Rotoscope::Caller.new(line.fetch('entity'), line.fetch('method_name'))
+        call_stack.pop if call_stack.last == caller
       end
     end
+  end
+
+  def short_log_path
+    return log_path if log_path.length < 40
+    chars = log_path.chars
+    "#{chars.first(17).join('')}...#{chars.last(20).join('')}"
   end
 end

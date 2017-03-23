@@ -13,10 +13,10 @@ class Noisemaker
   end
 end
 
-gzip_file = File.expand_path('tmp/dog_trace.log.gz')
+output_file = File.expand_path('tmp/dog_trace.log')
 
-puts "Writing to #{gzip_file}..."
-Rotoscope.trace(gzip_file, compress: true) do
+puts "Writing to #{output_file}..."
+Rotoscope.trace(output_file) do
   dog1 = Dog.new
   dog1.bark
 end

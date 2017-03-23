@@ -224,11 +224,14 @@ static void close_log_handle(Rotoscope *config)
 {
   if (config->log)
   {
-    if (!in_fork(config))
+    if (in_fork(config))
+    {
+      close(fileno(config->log));
+    }
+    else
     {
       fclose(config->log);
     }
-    close(fileno(config->log));
     config->log = NULL;
   }
 }
@@ -322,6 +325,10 @@ VALUE rotoscope_mark(VALUE self)
 VALUE rotoscope_close(VALUE self)
 {
   Rotoscope *config = get_config(self);
+  if (config->state == RS_CLOSED)
+  {
+    return Qtrue;
+  }
   close_log_handle(config);
   config->state = RS_CLOSED;
   return Qtrue;
@@ -339,11 +346,11 @@ VALUE rotoscope_state(VALUE self)
   switch (config->state)
   {
     case RS_OPEN:
-      return ID2SYM(rb_intern("RS_OPEN"));
+      return ID2SYM(rb_intern("open"));
     case RS_CLOSED:
-      return ID2SYM(rb_intern("RS_CLOSED"));
+      return ID2SYM(rb_intern("closed"));
     default:
-      return ID2SYM(rb_intern("RS_UNKNOWN_STATE"));
+      return ID2SYM(rb_intern("unknown"));
   }
 }
 
