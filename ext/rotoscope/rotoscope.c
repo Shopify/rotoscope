@@ -4,17 +4,19 @@
 #include <stdio.h>
 #include <errno.h>
 #include <stdbool.h>
+#include <sys/file.h>
 #include "rotoscope.h"
-#include "zlib.h"
 
 VALUE cRotoscope;
 
 // recursive with singleton2str
 static rs_class_desc_t class2str(VALUE klass);
 
-static int write_csv_header(gzFile *log)
+ID id_caller_locations;
+
+static int write_csv_header(FILE *log)
 {
-  return gzprintf(*log, RS_CSV_HEADER);
+  return fprintf(log, RS_CSV_HEADER);
 }
 
 static const char *evflag2name(rb_event_flag_t evflag)
@@ -110,7 +112,7 @@ static rs_class_desc_t class2str(VALUE klass)
     }
     else
     {
-      real_class.name = RSTRING_PTR(rb_any_to_s(klass));
+      real_class.name = RSTRING_PTR(rb_class_path(klass));
     }
   }
 
@@ -120,7 +122,7 @@ static rs_class_desc_t class2str(VALUE klass)
 static char *caller_location(int start)
 {
   VALUE argv[2] = {INT2NUM(start), INT2NUM(1)};
-  VALUE res = rb_funcallv(rb_mKernel, rb_intern("caller_locations"), 2, argv);
+  VALUE res = rb_funcallv(rb_mKernel, id_caller_locations, 2, argv);
   return RSTRING_PTR(rb_inspect(rb_ary_entry(res, 0)));
 }
 
@@ -215,17 +217,18 @@ static void event_hook(VALUE tpval, void *data)
     return;
 
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
-  gzprintf(config->log, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
+  fprintf(config->log, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
 }
 
-static void close_gz_handle(Rotoscope *config)
+static void close_log_handle(Rotoscope *config)
 {
   if (config->log)
   {
     if (!in_fork(config))
     {
-      gzclose(config->log);
+      fclose(config->log);
     }
+    close(fileno(config->log));
     config->log = NULL;
   }
 }
@@ -238,7 +241,7 @@ static void rs_gc_mark(Rotoscope *config)
 
 void rs_dealloc(Rotoscope *config)
 {
-  close_gz_handle(config);
+  close_log_handle(config);
   free(config);
 }
 
@@ -268,16 +271,17 @@ VALUE initialize(int argc, VALUE *argv, VALUE self)
   config->pid = getpid();
 
   Check_Type(output_path, T_STRING);
-  const char *path = RSTRING_PTR(output_path);
-  config->log = gzopen(path, "w");
+  config->log_path = RSTRING_PTR(output_path);
+  config->log = fopen(config->log_path, "w");
+
   if (config->log == NULL)
   {
-    fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n", path, strerror(errno));
+    fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n", config->log_path, strerror(errno));
     exit(1);
   }
+  write_csv_header(config->log);
 
-  write_csv_header(&config->log);
-
+  config->state = RS_OPEN;
   return self;
 }
 
@@ -300,20 +304,27 @@ VALUE rotoscope_stop_trace(VALUE self)
   return Qnil;
 }
 
+VALUE rotoscope_log_path(VALUE self)
+{
+  Rotoscope *config = get_config(self);
+  return rb_str_new_cstr(config->log_path);
+}
+
 VALUE rotoscope_mark(VALUE self)
 {
   Rotoscope *config = get_config(self);
   if (!in_fork(config))
   {
-    gzprintf(config->log, "---\n");
+    fprintf(config->log, "---\n");
   }
   return Qnil;
 }
 VALUE rotoscope_close(VALUE self)
 {
   Rotoscope *config = get_config(self);
-  close_gz_handle(config);
-  return Qnil;
+  close_log_handle(config);
+  config->state = RS_CLOSED;
+  return Qtrue;
 }
 
 VALUE rotoscope_trace(VALUE self)
@@ -322,8 +333,24 @@ VALUE rotoscope_trace(VALUE self)
   return rb_ensure(rb_yield, Qundef, rotoscope_stop_trace, self);
 }
 
+VALUE rotoscope_state(VALUE self)
+{
+  Rotoscope *config = get_config(self);
+  switch (config->state)
+  {
+    case RS_OPEN:
+      return ID2SYM(rb_intern("RS_OPEN"));
+    case RS_CLOSED:
+      return ID2SYM(rb_intern("RS_CLOSED"));
+    default:
+      return ID2SYM(rb_intern("RS_UNKNOWN_STATE"));
+  }
+}
+
 void Init_rotoscope(void)
 {
+  id_caller_locations = rb_intern("caller_locations");
+
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
   rb_define_method(cRotoscope, "initialize", initialize, -1);
@@ -332,4 +359,6 @@ void Init_rotoscope(void)
   rb_define_method(cRotoscope, "close", (VALUE(*)(ANYARGS))rotoscope_close, 0);
   rb_define_method(cRotoscope, "start_trace", (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
   rb_define_method(cRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
+  rb_define_method(cRotoscope, "log_path", (VALUE(*)(ANYARGS))rotoscope_log_path, 0);
+  rb_define_method(cRotoscope, "state", (VALUE(*)(ANYARGS))rotoscope_state, 0);
 }
