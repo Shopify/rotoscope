@@ -90,7 +90,7 @@ IO,write,instance,example/flattened_dog.rb,11,IO,puts
   - [`trace`](#rotoscopetraceblock)
   - [`start_trace`](#rotoscopestart_trace)
   - [`stop_trace`](#rotoscopestop_trace)
-  - [`flatten`](#rotoscopeflatten)
+  - [`flatten`](#rotoscopeflattendest)
   - [`mark`](#rotoscopemark)
   - [`close`](#rotoscopeclose)
   - [`state`](#rotoscopestate)
