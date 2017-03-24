@@ -23,17 +23,16 @@ class Noisemaker
   end
 end
 
-gzip_file = File.expand_path('dog_trace.log.gz')
-puts "Writing to #{gzip_file}..."
+log_file = File.expand_path('dog_trace.log')
+puts "Writing to #{log_file}..."
 
-Rotoscope.trace(gzip_file) do
+Rotoscope.trace(log_file) do
   dog1 = Dog.new
   dog1.bark
 end
-
 ```
 
-The resulting method calls are saved in the specified `output_path` in the order they were received.
+The resulting method calls are saved in the specified `dest` in the order they were received.
 
 Sample output:
 
@@ -55,61 +54,92 @@ return,"IO","puts",instance,"example/dog.rb",11
 return,"Noisemaker","puts",class,"example/dog.rb",11
 return,"Noisemaker","speak",class,"example/dog.rb",12
 return,"Dog","bark",instance,"example/dog.rb",6
+```
 
+If you're interested solely in the flattened caller/callee list, you can pass the `flatten` option to retrieve that instead.
+
+```ruby
+# ... same code as above
+
+Rotoscope.trace(log_file, flatten: true) do
+  dog1 = Dog.new
+  dog1.bark
+end
+```
+
+Sample output:
+
+```
+entity,method_name,method_level,filepath,lineno,caller_entity,caller_method_name
+Dog,new,class,example/flattened_dog.rb,19,<ROOT>,unknown
+Dog,initialize,instance,example/flattened_dog.rb,19,Dog,new
+Dog,bark,instance,example/flattened_dog.rb,20,<ROOT>,unknown
+Noisemaker,speak,class,example/flattened_dog.rb,5,Dog,bark
+Noisemaker,puts,class,example/flattened_dog.rb,11,Noisemaker,speak
+IO,puts,instance,example/flattened_dog.rb,11,Noisemaker,puts
+IO,write,instance,example/flattened_dog.rb,11,IO,puts
+IO,write,instance,example/flattened_dog.rb,11,IO,puts
 ```
 
 ## API
 
 - [Public Class Methods](#public-class-methods)
-  - [trace](#rotoscopetraceoutput_path-blacklist)
-  - [new](#rotoscopenewoutput_path-blacklist)
+  - [`trace`](#rotoscopetracedest-blacklist--flatten-false)
+  - [`new`](#rotoscopenewdest-blacklist)
 - [Public Instance Methods](#public-instance-methods)
-  - [trace](#rotoscopetraceblock)
-  - [start_trace](#rotoscopestart_trace)
-  - [stop_trace](#rotoscopestop_trace)
-  - [mark](#rotoscopemark)
-  - [close](#rotoscopeclose)
+  - [`trace`](#rotoscopetraceblock)
+  - [`start_trace`](#rotoscopestart_trace)
+  - [`stop_trace`](#rotoscopestop_trace)
+  - [`flatten`](#rotoscopeflatten)
+  - [`mark`](#rotoscopemark)
+  - [`close`](#rotoscopeclose)
+  - [`state`](#rotoscopestate)
+  - [`closed?`](#rotoscopeclosed)
+
+---
 
 ### Public Class Methods
 
-#### `Rotoscope::trace(output_path, blacklist=[])`
+#### `Rotoscope::trace(dest, blacklist: [], flatten: false)`
 
-Logs all calls and returns of methods to `output_path`, except for those whose filepath contains any entry in `blacklist`. The provided `output_path` must be an absolute file path.
+Writes all calls and returns of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. For details on the `flatten` option, see [`Rotoscope#flatten`](#rotoscopeflatten).
 
 ```ruby
-Rotoscope.trace(output_path) { |rs| ... }
+Rotoscope.trace(dest) { |rs| ... }
 # or...
-Rotoscope.trace(output_path, ["/.gem/", "/gems/"]) { |rs| ... }
+Rotoscope.trace(dest, blacklist: ["/.gem/", "/gems/"], flatten: true) { |rs| ... }
 ```
 
-#### `Rotoscope::new(output_path, blacklist=[])`
+#### `Rotoscope::new(dest, blacklist=[])`
 
 Similar to `Rotoscope::trace`, but allows fine-grain control with `Rotoscope#start_trace` and `Rotoscope#stop_trace`.
 ```ruby
-rs = Rotoscope.new(output_path)
+rs = Rotoscope.new(dest)
 # or...
-rs = Rotoscope.new(output_path, ["/.gem/", "/gems/"])
+rs = Rotoscope.new(dest, ["/.gem/", "/gems/"])
 ```
+
+---
 
 ### Public Instance Methods
 
 #### `Rotoscope#trace(&block)`
 
-Same as `Rotoscope::trace`, but does not need to create a file handle on invocation.
+Similar to `Rotoscope::trace`, but does not need to create a file handle on invocation.
 
 ```ruby
-rs = Rotoscope.new(output_path)
-rs.trace do
+rs = Rotoscope.new(dest)
+rs.trace do |rotoscope|
   # code to trace...
 end
 ```
 
 #### `Rotoscope#start_trace`
 
-Begins writing method calls and returns to the `output_path` specified in the initializer.
+Begins writing method calls and returns to the `dest` specified in the initializer.
 
 ```ruby
-rs = Rotoscope.new(output_path)
+rs = Rotoscope.new(dest)
 rs.start_trace
 # code to trace...
 rs.stop_trace
@@ -117,13 +147,27 @@ rs.stop_trace
 
 #### `Rotoscope#stop_trace`
 
-Stops writing method invocations to the `output_path`. Subsequent calls to `Rotoscope#start_trace` may be invoked to resume tracing.
+Stops writing method invocations to the `dest`. Subsequent calls to `Rotoscope#start_trace` may be invoked to resume tracing.
 
 ```ruby
-rs = Rotoscope.new(output_path)
+rs = Rotoscope.new(dest)
 rs.start_trace
 # code to trace...
 rs.stop_trace
+```
+
+#### `Rotoscope#flatten(dest)`
+Reduces the output data to a list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `unknown`. `dest` is either a filename or an `IO`.
+
+
+```ruby
+rs = Rotoscope.new(dest)
+rs.trace { |rotoscope| ... }
+rs.close
+
+rs.flatten('tmp/flattened.csv')
+# or ...
+Zlib::GzipWriter.open(dest) { |gz| rs.flatten(gz) }
 ```
 
 #### `Rotoscope#mark`
@@ -131,7 +175,7 @@ rs.stop_trace
  Inserts a marker '---' to divide output. Useful for segmenting multiple blocks of code that are being profiled.
 
 ```ruby
-rs = Rotoscope.new(output_path)
+rs = Rotoscope.new(dest)
 rs.start_trace
 # code to trace...
 rs.mark
@@ -141,13 +185,32 @@ rs.stop_trace
 
 #### `Rotoscope#close`
 
-Flushes the buffer and closes the file handle. Once this is invoked, no more writes can be performed on the `Rotoscope` object.
+Flushes the buffer and closes the file handle. Once this is invoked, no more writes can be performed on the `Rotoscope` object. Sets `state` to `:closed`.
 
 ```ruby
-rs = Rotoscope.new(output_path)
-rs.start_trace
-# code to trace...
+rs = Rotoscope.new(dest)
+rs.trace { |rotoscope| ... }
 rs.close
-# more code ...
-rs.stop_trace
+```
+
+#### `Rotoscope#state`
+
+Returns the current state of the Rotoscope object. Valid values are `:open`, `:closed` and `:unknown`.
+
+```ruby
+rs = Rotoscope.new(dest)
+rs.state # :open
+rs.close
+rs.state # :closed
+```
+
+#### `Rotoscope#closed?`
+
+Shorthand to check if the `state` is set to `:closed`.
+
+```ruby
+rs = Rotoscope.new(dest)
+rs.closed? # false
+rs.close
+rs.closed? # true
 ```

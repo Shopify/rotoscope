@@ -15,6 +15,11 @@
 
 #define UNKNOWN_FILE_PATH "Unknown"
 
+typedef enum {
+  RS_OPEN = 1,
+  RS_CLOSED
+} rs_state;
+
 typedef struct
 {
   const char *event;
@@ -25,15 +30,15 @@ typedef struct
   unsigned int lineno;
 } rs_tracepoint_t;
 
-#include "zlib.h"
-
 typedef struct
 {
-  gzFile log;
+  FILE *log;
+  char *log_path;
   VALUE tracepoint;
   VALUE blacklist;
   unsigned long blacklist_size;
   pid_t pid;
+  rs_state state;
 } Rotoscope;
 
 typedef struct

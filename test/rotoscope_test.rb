@@ -44,10 +44,132 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def teardown
-    FileUtils.remove_file(@logfile)
+    FileUtils.remove_file(@logfile) if File.file?(@logfile)
   end
 
-  def test_instance_method
+  def test_new
+    rs = Rotoscope.new(@logfile)
+    assert rs.is_a?(Rotoscope)
+  end
+
+  def test_close
+    rs = Rotoscope.new(@logfile)
+    assert rs.close
+  end
+
+  def test_closed?
+    rs = Rotoscope.new(@logfile)
+    refute_predicate rs, :closed?
+    rs.close
+    assert_predicate rs, :closed?
+  end
+
+  def test_state
+    rs = Rotoscope.new(@logfile)
+    assert_equal :open, rs.state
+    rs.close
+    assert_equal :closed, rs.state
+  end
+
+  def test_mark
+    contents = rotoscope_trace do |rs|
+      Example.new.normal_method
+      rs.mark
+    end
+
+    assert_includes contents.split("\n"), '---'
+  end
+
+  def test_flatten
+    flatten_fh = Tempfile.new("flattened")
+    rs = Rotoscope.new(@logfile)
+    rs.trace { Example.new.normal_method }
+    rs.close
+    rs.flatten(flatten_fh.path)
+    contents = flatten_fh.read
+
+    assert_equal [
+      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new" },
+      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_flatten_raises_if_handle_open
+    flatten_fh = Tempfile.new("flattened")
+    rs = Rotoscope.new(@logfile)
+    rs.trace { Example.new.normal_method }
+
+    refute rs.closed?
+    assert_raises Rotoscope::InvalidStateError do
+      rs.flatten(flatten_fh.path)
+    end
+  end
+
+  def test_flatten_removes_orphaned_returns
+    flatten_fh = Tempfile.new("flattened")
+    rs = Rotoscope.new(@logfile)
+
+    rs.start_trace
+    Example.new.normal_method
+    rs.stop_trace
+    rs.close
+
+    rs.flatten(flatten_fh.path)
+    contents = flatten_fh.read
+
+    assert_equal [
+      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new" },
+      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+      { entity: "Rotoscope", method_name: "stop_trace", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
+  def test_flatten_supports_io_objects
+    rs = Rotoscope.new(@logfile)
+    rs.trace { Example.new.normal_method }
+    rs.close
+
+    contents = Tempfile.open('flattened_debug') do |tracefile|
+      rs.flatten(tracefile)
+      refute_predicate tracefile, :closed?
+      tracefile.rewind
+      tracefile.read
+    end
+
+    assert_equal [
+      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new" },
+      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_start_trace_and_stop_trace
+    rs = Rotoscope.new(@logfile)
+    rs.start_trace
+    Example.new.normal_method
+    rs.stop_trace
+    rs.close
+    contents = File.read(@logfile)
+
+    assert_equal [
+      { event: "return", entity: "Rotoscope", method_name: "start_trace", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Rotoscope", method_name: "stop_trace", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
+  def test_traces_instance_method
     contents = rotoscope_trace { Example.new.normal_method }
     assert_equal [
       { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
@@ -66,7 +188,7 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
-  def test_formats_singletons_of_a_class
+  def test_traces_and_formats_singletons_of_a_class
     contents = rotoscope_trace { Example.singleton_method }
     assert_equal [
       { event: "call", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
@@ -76,7 +198,7 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
-  def test_formats_singletons_of_an_instance
+  def test_traces_and_formats_singletons_of_an_instance
     contents = rotoscope_trace { Example.new.singleton_class.singleton_method }
     assert_equal [
       { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
@@ -92,8 +214,8 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
-  def test_ignores_calls_if_blacklisted
-    contents = rotoscope_trace([INNER_FIXTURE_PATH, OUTER_FIXTURE_PATH]) do
+  def test_trace_ignores_calls_if_blacklisted
+    contents = rotoscope_trace(blacklist: [INNER_FIXTURE_PATH, OUTER_FIXTURE_PATH]) do
       foo = FixtureOuter.new
       foo.do_work
     end
@@ -110,7 +232,7 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
-  def test_ignore_writes_in_fork
+  def test_trace_ignores_writes_in_fork
     contents = rotoscope_trace do |rotoscope|
       fork do
         Example.singleton_method
@@ -130,6 +252,52 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_trace_flatten
+    contents = rotoscope_trace(flatten: true) { Example.new.normal_method }
+    assert_equal [
+      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new" },
+      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_trace_flatten_across_files
+    contents = rotoscope_trace(flatten: true) do
+      foo = FixtureOuter.new
+      foo.do_work
+    end
+    assert_equal [
+      { entity: "FixtureOuter", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+      { entity: "FixtureOuter", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "new" },
+      { entity: "FixtureInner", method_name: "new", method_level: "class", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "initialize" },
+      { entity: "FixtureInner", method_name: "initialize", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "new" },
+      { entity: "FixtureOuter", method_name: "do_work", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+      { entity: "FixtureInner", method_name: "do_work", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "do_work" },
+      { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "do_work" }
+    ], parse_and_normalize(contents)
+  end
+
+  def test_trace_uses_io_objects
+    contents = Tempfile.open('trace') do |tracefile|
+      Rotoscope.trace(tracefile) do |rs|
+        Example.new.normal_method
+      end
+      refute_predicate tracefile, :closed?
+      tracefile.read
+    end
+
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
   private
 
   def parse_and_normalize(csv_string)
@@ -145,9 +313,9 @@ class RotoscopeTest < MiniTest::Test
     assert_equal csv_string.scan(/\Acall/).size, csv_string.scan(/\Areturn/).size
   end
 
-  def rotoscope_trace(blacklist = [])
-    Rotoscope.trace(@logfile, blacklist) { |rotoscope| yield rotoscope }
-    unzip(@logfile)
+  def rotoscope_trace(*args)
+    Rotoscope.trace(@logfile, *args) { |rotoscope| yield rotoscope }
+    File.read(@logfile)
   end
 
   def unzip(path)
