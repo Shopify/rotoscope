@@ -12,7 +12,7 @@ VALUE cRotoscope;
 // recursive with singleton2str
 static rs_class_desc_t class2str(VALUE klass);
 
-ID id_caller_locations;
+ID id_caller_locations, id_path, id_lineno;
 
 static int write_csv_header(FILE *log)
 {
@@ -119,44 +119,35 @@ static rs_class_desc_t class2str(VALUE klass)
   return real_class;
 }
 
-static char *caller_location(int start)
+static rs_callsite_t caller_location(int start)
 {
   VALUE argv[2] = {INT2NUM(start), INT2NUM(1)};
-  VALUE res = rb_funcallv(rb_mKernel, id_caller_locations, 2, argv);
-  return RSTRING_PTR(rb_inspect(rb_ary_entry(res, 0)));
+  VALUE locations = rb_funcallv(rb_mKernel, id_caller_locations, 2, argv);
+  VALUE location = rb_ary_entry(locations, 0);
+  VALUE path = rb_funcall(location, id_path, 0);
+
+  return (rs_callsite_t) {
+    .filepath = NIL_P(path) ? "" : RSTRING_PTR(path),
+    .lineno = FIX2INT(rb_funcall(location, id_lineno, 0)),
+  };
 }
 
 static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg)
 {
-  rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
-  rs_callsite_t callsite;
-  callsite.lineno = 0;
-  VALUE path;
-  char *caller_str = NULL;
-
-  switch (event_flag)
+  switch (rb_tracearg_event_flag(trace_arg))
   {
-  case RUBY_EVENT_C_CALL:
-    path = rb_tracearg_path(trace_arg);
-    strncpy((char *)callsite.filepath, RTEST(path) ? RSTRING_PTR(path) : "", sizeof(callsite.filepath));
-    callsite.lineno = FIX2INT(rb_tracearg_lineno(trace_arg));
-    break;
   case RUBY_EVENT_C_RETURN:
-    caller_str = caller_location(0) + 1; // +1 to drop opening quote
-    // drop down to default on purpose
-  default:
-    if (caller_str || (caller_str = (caller_location(1) + 1)))
+  case RUBY_EVENT_C_CALL:
     {
-      strncpy((char *)callsite.filepath, caller_str, sizeof(callsite.filepath));
-      strtok((char *)callsite.filepath, ":");
-      if (caller_str = strtok(NULL, ":"))
-      {
-        callsite.lineno = (unsigned int)strtoul(caller_str, NULL, 10);
-      }
+      VALUE path = rb_tracearg_path(trace_arg);
+      return (rs_callsite_t) {
+        .filepath = NIL_P(path) ? "" : RSTRING_PTR(path),
+        .lineno = FIX2INT(rb_tracearg_lineno(trace_arg)),
+      };
     }
+  default:
+    return caller_location(1);
   }
-
-  return callsite;
 }
 
 static rs_class_desc_t tracearg_class(rb_trace_arg_t *trace_arg)
@@ -357,6 +348,8 @@ VALUE rotoscope_state(VALUE self)
 void Init_rotoscope(void)
 {
   id_caller_locations = rb_intern("caller_locations");
+  id_path = rb_intern("path");
+  id_lineno = rb_intern("lineno");
 
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
