@@ -49,7 +49,7 @@ typedef struct
 
 typedef struct
 {
-  const char filepath[200];
+  const char *filepath;
   unsigned int lineno;
 } rs_callsite_t;
 
