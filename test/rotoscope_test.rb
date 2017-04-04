@@ -147,6 +147,25 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_flatten_supports_io_like_objects
+    rs = Rotoscope.new(@logfile)
+    rs.trace { Example.new.normal_method }
+    rs.close
+
+    zip_path = File.expand_path('../../tmp/trace.gz', __FILE__)
+    Zlib::GzipWriter.open(zip_path) do |gz|
+      rs.flatten(gz)
+      refute_predicate gz, :closed?
+    end
+    contents = unzip(zip_path)
+
+    assert_equal [
+      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new" },
+      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "unknown" },
+    ], parse_and_normalize(contents)
+  end
+
   def test_start_trace_and_stop_trace
     rs = Rotoscope.new(@logfile)
     rs.start_trace

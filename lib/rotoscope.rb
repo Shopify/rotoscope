@@ -34,17 +34,16 @@ class Rotoscope
   end
 
   def flatten(dest)
-    io_given = false
-    dest_file = if dest.respond_to?(:to_io)
-      io_given = true
-      dest.to_io
+    io_given = if dest.respond_to?(:puts)
+      true
     else
-      File.open(dest, 'w')
+      dest = File.open(dest, 'w')
+      false
     end
 
-    flatten_into(dest_file)
+    flatten_into(dest)
   ensure
-    dest_file.close unless io_given
+    dest.close unless io_given
   end
 
   def closed?
