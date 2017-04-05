@@ -7,43 +7,65 @@ require 'csv'
 class Rotoscope
   InvalidStateError = Class.new(StandardError)
 
-  def self.trace(dest, blacklist: [], flatten: false)
-    io_given = false
-    dest_file = if flatten
-      Tempfile.new("rotoscope_output")
-    elsif dest.respond_to?(:to_io)
-      io_given = true
-      dest.to_io
-    else
-      File.open(dest, 'w')
+  class << self
+    def trace(dest, blacklist: [], flatten: false, &block)
+      if flatten
+        return flat_trace(dest, blacklist, &block)
+      end
+      if dest.is_a?(String)
+        return event_trace(dest, blacklist, &block)
+      end
+      io_event_trace(dest, blacklist, &block)
     end
 
-    begin
-      rs = Rotoscope.new(dest_file.path, blacklist)
-      rs.trace { yield rs }
+    private
+
+    def with_temp_file(name)
+      temp_file = Tempfile.new(name)
+      yield temp_file
     ensure
-      rs.close
+      temp_file.close! if temp_file
     end
-    rs.flatten(dest) if flatten
-    rs
-  ensure
-    unless io_given
-      dest_file.close if dest_file.nil?
-      dest_file.unlink if dest_file.is_a?(Tempfile)
+
+    def temp_event_trace(blacklist, block)
+      with_temp_file("rotoscope_output") do |temp_file|
+        rs = event_trace(temp_file.path, blacklist, &block)
+        yield rs
+        rs
+      end
+    end
+
+    def flat_trace(dest, blacklist, &block)
+      temp_event_trace(blacklist, block) do |rs|
+        rs.flatten(dest)
+      end
+    end
+
+    def io_event_trace(dest_io, blacklist, &block)
+      temp_event_trace(blacklist, block) do |rs|
+        File.open(rs.log_path) do |rs_file|
+          IO.copy_stream(rs_file, dest_io)
+        end
+      end
+    end
+
+    def event_trace(dest_path, blacklist)
+      rs = Rotoscope.new(dest_path, blacklist)
+      rs.trace { yield rs }
+      rs
+    ensure
+      rs.close if rs
     end
   end
 
   def flatten(dest)
-    io_given = if dest.respond_to?(:puts)
-      true
+    if dest.is_a?(String)
+      File.open(dest, 'w') do |file|
+        flatten_into(file)
+      end
     else
-      dest = File.open(dest, 'w')
-      false
+      flatten_into(dest)
     end
-
-    flatten_into(dest)
-  ensure
-    dest.close unless io_given
   end
 
   def closed?
