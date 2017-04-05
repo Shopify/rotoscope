@@ -32,3 +32,5 @@ Rake::TestTask.new 'test' do |t|
   t.test_files = FileList['test/*_test.rb']
 end
 task test: :build
+
+task default: :test
