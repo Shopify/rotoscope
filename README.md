@@ -157,7 +157,7 @@ rs.stop_trace
 ```
 
 #### `Rotoscope#flatten(dest)`
-Reduces the output data to a list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `unknown`. `dest` is either a filename or an `IO`.
+Reduces the output data to a list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `unknown`. `dest` is either a filename or an instance of IO, or IO-like, object.
 
 
 ```ruby
