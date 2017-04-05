@@ -47,10 +47,4 @@ typedef struct
   const char *method_level;
 } rs_class_desc_t;
 
-typedef struct
-{
-  const char *filepath;
-  unsigned int lineno;
-} rs_callsite_t;
-
 #endif
