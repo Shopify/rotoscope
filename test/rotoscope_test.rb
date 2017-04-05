@@ -297,13 +297,13 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_trace_uses_io_objects
-    contents = Tempfile.open('trace') do |tracefile|
-      Rotoscope.trace(tracefile) do |rs|
-        Example.new.normal_method
-      end
-      refute_predicate tracefile, :closed?
-      tracefile.read
+    string_io = StringIO.new
+    Rotoscope.trace(string_io) do |rs|
+      Example.new.normal_method
     end
+    refute_predicate string_io, :closed?
+    assert_predicate string_io, :eof?
+    contents = string_io.string
 
     assert_equal [
       { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
