@@ -180,6 +180,7 @@ static void event_hook(VALUE tpval, void *data)
   if (in_fork(config))
   {
     rb_tracepoint_disable(config->tracepoint);
+    config->state = RS_OPEN;
     return;
   }
 
@@ -197,6 +198,11 @@ static void close_log_handle(Rotoscope *config)
 {
   if (config->log)
   {
+    if (config->state == RS_TRACING)
+    {
+      rb_tracepoint_disable(config->tracepoint);
+    }
+
     if (in_fork(config))
     {
       close(fileno(config->log));
@@ -245,6 +251,7 @@ VALUE initialize(int argc, VALUE *argv, VALUE self)
   Check_Type(config->blacklist, T_ARRAY);
   config->blacklist_size = RARRAY_LEN(config->blacklist);
   config->pid = getpid();
+  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)config);
 
   Check_Type(output_path, T_STRING);
   config->log_path = RSTRING_PTR(output_path);
@@ -264,8 +271,8 @@ VALUE initialize(int argc, VALUE *argv, VALUE self)
 VALUE rotoscope_start_trace(VALUE self)
 {
   Rotoscope *config = get_config(self);
-  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)config);
   rb_tracepoint_enable(config->tracepoint);
+  config->state = RS_TRACING;
   return Qnil;
 }
 
@@ -275,6 +282,7 @@ VALUE rotoscope_stop_trace(VALUE self)
   if (rb_tracepoint_enabled_p(config->tracepoint))
   {
     rb_tracepoint_disable(config->tracepoint);
+    config->state = RS_OPEN;
   }
 
   return Qnil;
@@ -289,12 +297,13 @@ VALUE rotoscope_log_path(VALUE self)
 VALUE rotoscope_mark(VALUE self)
 {
   Rotoscope *config = get_config(self);
-  if (!in_fork(config))
+  if (config->log != NULL && !in_fork(config))
   {
     fprintf(config->log, "---\n");
   }
   return Qnil;
 }
+
 VALUE rotoscope_close(VALUE self)
 {
   Rotoscope *config = get_config(self);
@@ -320,6 +329,8 @@ VALUE rotoscope_state(VALUE self)
   {
     case RS_OPEN:
       return ID2SYM(rb_intern("open"));
+    case RS_TRACING:
+      return ID2SYM(rb_intern("tracing"));
     case RS_CLOSED:
       return ID2SYM(rb_intern("closed"));
     default:

@@ -17,6 +17,7 @@
 
 typedef enum {
   RS_OPEN = 1,
+  RS_TRACING,
   RS_CLOSED
 } rs_state;
 
