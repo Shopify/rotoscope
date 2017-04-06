@@ -1,18 +1,19 @@
 #include "ruby.h"
+#include "ruby/version.h"
 #include "ruby/debug.h"
 #include "ruby/intern.h"
 #include <stdio.h>
 #include <errno.h>
 #include <stdbool.h>
 #include <sys/file.h>
+
 #include "rotoscope.h"
+#include "callsite.h"
 
 VALUE cRotoscope;
 
 // recursive with singleton2str
 static rs_class_desc_t class2str(VALUE klass);
-
-ID id_caller_locations, id_path, id_lineno;
 
 static int write_csv_header(FILE *log)
 {
@@ -119,34 +120,15 @@ static rs_class_desc_t class2str(VALUE klass)
   return real_class;
 }
 
-static rs_callsite_t caller_location(int start)
-{
-  VALUE argv[2] = {INT2NUM(start), INT2NUM(1)};
-  VALUE locations = rb_funcallv(rb_mKernel, id_caller_locations, 2, argv);
-  VALUE location = rb_ary_entry(locations, 0);
-  VALUE path = rb_funcall(location, id_path, 0);
-
-  return (rs_callsite_t) {
-    .filepath = NIL_P(path) ? "" : RSTRING_PTR(path),
-    .lineno = FIX2INT(rb_funcall(location, id_lineno, 0)),
-  };
-}
-
 static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg)
 {
   switch (rb_tracearg_event_flag(trace_arg))
   {
   case RUBY_EVENT_C_RETURN:
   case RUBY_EVENT_C_CALL:
-    {
-      VALUE path = rb_tracearg_path(trace_arg);
-      return (rs_callsite_t) {
-        .filepath = NIL_P(path) ? "" : RSTRING_PTR(path),
-        .lineno = FIX2INT(rb_tracearg_lineno(trace_arg)),
-      };
-    }
+    return c_callsite(trace_arg);
   default:
-    return caller_location(1);
+    return ruby_callsite(trace_arg);
   }
 }
 
@@ -347,10 +329,6 @@ VALUE rotoscope_state(VALUE self)
 
 void Init_rotoscope(void)
 {
-  id_caller_locations = rb_intern("caller_locations");
-  id_path = rb_intern("path");
-  id_lineno = rb_intern("lineno");
-
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
   rb_define_method(cRotoscope, "initialize", initialize, -1);
@@ -361,4 +339,6 @@ void Init_rotoscope(void)
   rb_define_method(cRotoscope, "stop_trace", (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
   rb_define_method(cRotoscope, "log_path", (VALUE(*)(ANYARGS))rotoscope_log_path, 0);
   rb_define_method(cRotoscope, "state", (VALUE(*)(ANYARGS))rotoscope_state, 0);
+
+  init_callsite();
 }
