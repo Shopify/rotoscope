@@ -67,6 +67,10 @@ class RotoscopeTest < MiniTest::Test
   def test_state
     rs = Rotoscope.new(@logfile)
     assert_equal :open, rs.state
+    rs.trace do
+      assert_equal :tracing, rs.state
+    end
+    assert_equal :open, rs.state
     rs.close
     assert_equal :closed, rs.state
   end
@@ -271,6 +275,20 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_trace_disabled_on_close
+    contents = rotoscope_trace do |rotoscope|
+      Example.singleton_method
+      rotoscope.close
+      rotoscope.mark
+      Example.singleton_method
+    end
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Rotoscope", method_name: "close", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
   def test_trace_flatten
     contents = rotoscope_trace(flatten: true) { Example.new.normal_method }
     assert_equal [
@@ -315,6 +333,24 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
 
     assert_frames_consistent contents
+  end
+
+  def test_stop_trace_before_start_does_not_raise
+    rs = Rotoscope.new(@logfile)
+    rs.stop_trace
+  end
+
+  def test_gc_rotoscope_without_stop_trace_does_not_crash
+    # Temporary workaround for a crash that occassionally happens when rotoscope
+    # is still tracing its blacklist has been garbage collected and a trace event
+    # occurs in the Tempfile finalizer. This GC.start garbage collects any Tempfile
+    # objects so this doesn't happen, but can be removed once this bug is fixed.
+    GC.start
+
+    rs = Rotoscope.new(@logfile)
+    rs.start_trace
+    rs = nil
+    GC.start
   end
 
   private
