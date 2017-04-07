@@ -3,6 +3,8 @@
 
 #include "callsite.h"
 
+VALUE empty_ruby_string;
+
 // Need the cfp field from this internal ruby structure.
 struct rb_trace_arg_struct {
   // unused fields needed to make sure the cfp is at the
@@ -50,7 +52,7 @@ rs_callsite_t c_callsite(rb_trace_arg_t *trace_arg)
 {
   VALUE path = rb_tracearg_path(trace_arg);
   return (rs_callsite_t) {
-    .filepath = NIL_P(path) ? "" : RSTRING_PTR(path),
+    .filepath = NIL_P(path) ? empty_ruby_string : path,
     .lineno = FIX2INT(rb_tracearg_lineno(trace_arg)),
   };
 }
@@ -69,6 +71,9 @@ rs_callsite_t ruby_callsite(rb_trace_arg_t *trace_arg)
 
 void init_callsite()
 {
+  empty_ruby_string = rb_str_new_cstr("");
+  RB_OBJ_FREEZE(empty_ruby_string);
+
   VALUE tmp_obj = rb_funcall(rb_cObject, rb_intern("new"), 0);
   rb_define_singleton_method(tmp_obj, "dummy", dummy, 1);
 

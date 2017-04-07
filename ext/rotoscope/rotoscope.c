@@ -35,11 +35,11 @@ static const char *evflag2name(rb_event_flag_t evflag)
   }
 }
 
-static bool rejected_path(const char *path, Rotoscope *config)
+static bool rejected_path(VALUE path, Rotoscope *config)
 {
   for (unsigned long i = 0; i < config->blacklist_size; i++)
   {
-    if (strstr(path, config->blacklist[i]))
+    if (strstr(StringValueCStr(path), config->blacklist[i]))
       return true;
   }
 
@@ -57,14 +57,14 @@ static bool is_class_singleton(VALUE klass)
   return (RB_TYPE_P(obj, T_MODULE) || RB_TYPE_P(obj, T_CLASS));
 }
 
-static char *singleton2str(VALUE klass)
+static VALUE singleton2str(VALUE klass)
 {
   if (is_class_singleton(klass))
   {
     VALUE obj = class_of_singleton(klass);
     VALUE cached_lookup = rb_class_path_cached(obj);
     VALUE name = (NIL_P(cached_lookup)) ? rb_class_name(obj) : cached_lookup;
-    return RSTRING_PTR(name);
+    return name;
   }
   else // singleton of an instance
   {
@@ -75,16 +75,16 @@ static char *singleton2str(VALUE klass)
       VALUE cached_lookup = rb_class_path_cached(real_klass);
       if (RTEST(cached_lookup))
       {
-        return RSTRING_PTR(cached_lookup);
+        return cached_lookup;
       }
       else
       {
-        return RSTRING_PTR(rb_class_name(real_klass));
+        return rb_class_name(real_klass);
       }
     }
     // fallback in case we can't come up with a name
     // based on the ancestors
-    return RSTRING_PTR(rb_any_to_s(klass));
+    return rb_any_to_s(klass);
   }
 }
 
@@ -96,7 +96,7 @@ static rs_class_desc_t class2str(VALUE klass)
   VALUE cached_lookup = rb_class_path_cached(klass);
   if (RTEST(cached_lookup))
   {
-    real_class.name = RSTRING_PTR(cached_lookup);
+    real_class.name = cached_lookup;
   }
   else
   {
@@ -110,7 +110,7 @@ static rs_class_desc_t class2str(VALUE klass)
     }
     else
     {
-      real_class.name = RSTRING_PTR(rb_class_path(klass));
+      real_class.name = rb_class_path(klass);
     }
   }
 
@@ -146,9 +146,9 @@ static rs_class_desc_t tracearg_class(rb_trace_arg_t *trace_arg)
   return class2str(klass);
 }
 
-static char *tracearg_method_name(rb_trace_arg_t *trace_arg)
+static VALUE tracearg_method_name(rb_trace_arg_t *trace_arg)
 {
-  return RSTRING_PTR(rb_sym2str(rb_tracearg_method_id(trace_arg)));
+  return rb_sym2str(rb_tracearg_method_id(trace_arg));
 }
 
 static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg, const rs_callsite_t *callsite)
@@ -214,6 +214,7 @@ static void close_log_handle(Rotoscope *config)
 
 static void rs_gc_mark(Rotoscope *config)
 {
+  rb_gc_mark(config->log_path);
   rb_gc_mark(config->tracepoint);
 }
 
@@ -227,7 +228,11 @@ void rs_dealloc(Rotoscope *config)
 static VALUE rs_alloc(VALUE klass)
 {
   Rotoscope *config;
-  return Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
+  VALUE self = Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
+  config->log_path = Qnil;
+  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)config);
+  config->pid = getpid();
+  return self;
 }
 
 static Rotoscope *get_config(VALUE self)
@@ -274,15 +279,13 @@ VALUE initialize(int argc, VALUE *argv, VALUE self)
   if (!NIL_P(blacklist)) {
     copy_blacklist(config, blacklist);
   }
-  config->pid = getpid();
-  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)config);
 
-  config->log_path = RSTRING_PTR(output_path);
-  config->log = fopen(config->log_path, "w");
+  config->log_path = output_path;
+  config->log = fopen(StringValueCStr(config->log_path), "w");
 
   if (config->log == NULL)
   {
-    fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n", config->log_path, strerror(errno));
+    fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n", StringValueCStr(config->log_path), strerror(errno));
     exit(1);
   }
   write_csv_header(config->log);
@@ -314,7 +317,7 @@ VALUE rotoscope_stop_trace(VALUE self)
 VALUE rotoscope_log_path(VALUE self)
 {
   Rotoscope *config = get_config(self);
-  return rb_str_new_cstr(config->log_path);
+  return config->log_path;
 }
 
 VALUE rotoscope_mark(VALUE self)
@@ -354,10 +357,8 @@ VALUE rotoscope_state(VALUE self)
       return ID2SYM(rb_intern("open"));
     case RS_TRACING:
       return ID2SYM(rb_intern("tracing"));
-    case RS_CLOSED:
-      return ID2SYM(rb_intern("closed"));
     default:
-      return ID2SYM(rb_intern("unknown"));
+      return ID2SYM(rb_intern("closed"));
   }
 }
 

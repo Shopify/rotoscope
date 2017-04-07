@@ -195,7 +195,7 @@ rs.close
 
 #### `Rotoscope#state`
 
-Returns the current state of the Rotoscope object. Valid values are `:open`, `:tracing`, `:closed` and `:unknown`.
+Returns the current state of the Rotoscope object. Valid values are `:open`, `:tracing` and `:closed`.
 
 ```ruby
 rs = Rotoscope.new(dest)
