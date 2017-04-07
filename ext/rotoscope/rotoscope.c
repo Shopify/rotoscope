@@ -238,9 +238,10 @@ static Rotoscope *get_config(VALUE self)
 }
 
 void copy_blacklist(Rotoscope *config, VALUE blacklist) {
+  Check_Type(blacklist, T_ARRAY);
+
   size_t blacklist_malloc_size = RARRAY_LEN(blacklist) * sizeof(*config->blacklist);
 
-  Check_Type(blacklist, T_ARRAY);
   for (long i = 0; i < RARRAY_LEN(blacklist); i++) {
     VALUE ruby_string = RARRAY_AREF(blacklist, i);
     Check_Type(ruby_string, T_STRING);
