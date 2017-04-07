@@ -346,12 +346,6 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_gc_rotoscope_without_stop_trace_does_not_crash
-    # Temporary workaround for a crash that occassionally happens when rotoscope
-    # is still tracing its blacklist has been garbage collected and a trace event
-    # occurs in the Tempfile finalizer. This GC.start garbage collects any Tempfile
-    # objects so this doesn't happen, but can be removed once this bug is fixed.
-    GC.start
-
     rs = Rotoscope.new(@logfile)
     rs.start_trace
     rs = nil
