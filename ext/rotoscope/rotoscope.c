@@ -37,12 +37,9 @@ static const char *evflag2name(rb_event_flag_t evflag)
 
 static bool rejected_path(const char *path, Rotoscope *config)
 {
-  unsigned long i;
-  Check_Type(config->blacklist, T_ARRAY);
-
-  for (i = 0; i < config->blacklist_size; i++)
+  for (unsigned long i = 0; i < config->blacklist_size; i++)
   {
-    if (strstr(path, RSTRING_PTR(RARRAY_AREF(config->blacklist, i))))
+    if (strstr(path, config->blacklist[i]))
       return true;
   }
 
@@ -218,12 +215,12 @@ static void close_log_handle(Rotoscope *config)
 static void rs_gc_mark(Rotoscope *config)
 {
   rb_gc_mark(config->tracepoint);
-  rb_gc_mark(config->blacklist);
 }
 
 void rs_dealloc(Rotoscope *config)
 {
   close_log_handle(config);
+  free(config->blacklist);
   free(config);
 }
 
@@ -240,20 +237,45 @@ static Rotoscope *get_config(VALUE self)
   return config;
 }
 
+void copy_blacklist(Rotoscope *config, VALUE blacklist) {
+  size_t blacklist_malloc_size = RARRAY_LEN(blacklist) * sizeof(*config->blacklist);
+
+  Check_Type(blacklist, T_ARRAY);
+  for (long i = 0; i < RARRAY_LEN(blacklist); i++) {
+    VALUE ruby_string = RARRAY_AREF(blacklist, i);
+    Check_Type(ruby_string, T_STRING);
+    blacklist_malloc_size += RSTRING_LEN(ruby_string) + 1;
+  }
+
+  config->blacklist = ruby_xmalloc(blacklist_malloc_size);
+  config->blacklist_size = RARRAY_LEN(blacklist);
+  char *str = (char *)(config->blacklist + config->blacklist_size);
+
+  for (unsigned long i = 0; i < config->blacklist_size; i++) {
+    VALUE ruby_string = RARRAY_AREF(blacklist, i);
+
+    config->blacklist[i] = str;
+    memcpy(str, RSTRING_PTR(ruby_string), RSTRING_LEN(ruby_string));
+    str += RSTRING_LEN(ruby_string);
+    *str = '\0';
+    str++;
+  }
+}
+
 VALUE initialize(int argc, VALUE *argv, VALUE self)
 {
   Rotoscope *config = get_config(self);
   VALUE output_path;
+  VALUE blacklist;
 
-  rb_scan_args(argc, argv, "11", &output_path, &config->blacklist);
-  if (NIL_P(config->blacklist))
-    config->blacklist = rb_ary_new();
-  Check_Type(config->blacklist, T_ARRAY);
-  config->blacklist_size = RARRAY_LEN(config->blacklist);
+  rb_scan_args(argc, argv, "11", &output_path, &blacklist);
+  Check_Type(output_path, T_STRING);
+  if (!NIL_P(blacklist)) {
+    copy_blacklist(config, blacklist);
+  }
   config->pid = getpid();
   config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)config);
 
-  Check_Type(output_path, T_STRING);
   config->log_path = RSTRING_PTR(output_path);
   config->log = fopen(config->log_path, "w");
 

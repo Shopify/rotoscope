@@ -36,7 +36,7 @@ typedef struct
   FILE *log;
   char *log_path;
   VALUE tracepoint;
-  VALUE blacklist;
+  const char **blacklist;
   unsigned long blacklist_size;
   pid_t pid;
   rs_state state;
