@@ -6,7 +6,13 @@
 #define EVENT_CALL (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
 
-#define RS_CSV_VALUES(trace) trace.event, trace.entity, trace.method_name, trace.method_level, trace.filepath, trace.lineno
+#define RS_CSV_VALUES(trace) \
+    trace.event, \
+    StringValueCStr(trace.entity), \
+    StringValueCStr(trace.method_name), \
+    trace.method_level, \
+    StringValueCStr(trace.filepath), \
+    trace.lineno
 #define RS_CSV_HEADER "event,entity,method_name,method_level,filepath,lineno\n"
 #define RS_CSV_FORMAT "%s,\"%s\",\"%s\",%s,\"%s\",%d\n"
 
@@ -16,25 +22,25 @@
 #define UNKNOWN_FILE_PATH "Unknown"
 
 typedef enum {
-  RS_OPEN = 1,
+  RS_CLOSED = 0,
+  RS_OPEN,
   RS_TRACING,
-  RS_CLOSED
 } rs_state;
 
 typedef struct
 {
   const char *event;
-  const char *method_name;
-  const char *entity;
+  VALUE method_name;
+  VALUE entity;
   const char *method_level;
-  const char *filepath;
+  VALUE filepath;
   unsigned int lineno;
 } rs_tracepoint_t;
 
 typedef struct
 {
   FILE *log;
-  char *log_path;
+  VALUE log_path;
   VALUE tracepoint;
   const char **blacklist;
   unsigned long blacklist_size;
@@ -44,7 +50,7 @@ typedef struct
 
 typedef struct
 {
-  const char *name;
+  VALUE name;
   const char *method_level;
 } rs_class_desc_t;
 

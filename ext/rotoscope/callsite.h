@@ -3,7 +3,7 @@
 
 typedef struct
 {
-  const char *filepath;
+  VALUE filepath;
   unsigned int lineno;
 } rs_callsite_t;
 

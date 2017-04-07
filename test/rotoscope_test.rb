@@ -352,6 +352,12 @@ class RotoscopeTest < MiniTest::Test
     GC.start
   end
 
+  def test_log_path
+    rs = Rotoscope.new(File.expand_path('tmp/test.csv.gz'))
+    GC.start
+    assert_equal File.expand_path('tmp/test.csv.gz'), rs.log_path
+  end
+
   private
 
   def parse_and_normalize(csv_string)
