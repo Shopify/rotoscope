@@ -10,11 +10,6 @@ require 'csv'
 require 'fixture_inner'
 require 'fixture_outer'
 
-# For some reason an object finalizer is causing CI to exit with status 1
-# without any messages if it happens after minitest calls `exit`.  This will
-# workaround it for now
-Minitest.after_run { GC.start }
-
 class Example
   class << self
     def singleton_method
