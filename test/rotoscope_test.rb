@@ -2,18 +2,13 @@
 $LOAD_PATH.unshift File.expand_path('../../lib', __FILE__)
 $LOAD_PATH.unshift File.expand_path('../', __FILE__)
 require 'rotoscope'
-require 'minitest/autorun'
+require 'minitest'
 require 'zlib'
 require 'fileutils'
 require 'csv'
 
 require 'fixture_inner'
 require 'fixture_outer'
-
-# For some reason an object finalizer is causing CI to exit with status 1
-# without any messages if it happens after minitest calls `exit`.  This will
-# workaround it for now
-Minitest.after_run { GC.start }
 
 class Example
   class << self
@@ -352,6 +347,15 @@ class RotoscopeTest < MiniTest::Test
     GC.start
   end
 
+  def test_gc_rotoscope_without_stop_trace_does_not_break_process_cleanup
+    child_pid = fork do
+      rs = Rotoscope.new(@logfile)
+      rs.start_trace
+    end
+    Process.waitpid(child_pid)
+    assert_equal true, $?.success?
+  end
+
   def test_log_path
     rs = Rotoscope.new(File.expand_path('tmp/test.csv.gz'))
     GC.start
@@ -382,3 +386,7 @@ class RotoscopeTest < MiniTest::Test
     File.open(path) { |f| Zlib::GzipReader.new(f).read }
   end
 end
+
+# https://github.com/seattlerb/minitest/pull/683 needed to use
+# autorun without affecting the exit status of forked processes
+Minitest.run(ARGV)

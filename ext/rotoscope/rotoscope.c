@@ -10,7 +10,7 @@
 #include "rotoscope.h"
 #include "callsite.h"
 
-VALUE cRotoscope;
+VALUE cRotoscope, cTracePoint;
 
 // recursive with singleton2str
 static rs_class_desc_t class2str(VALUE klass);
@@ -195,9 +195,14 @@ static void close_log_handle(Rotoscope *config)
 {
   if (config->log)
   {
+    // Stop tracing so the event hook isn't called with a NULL log
     if (config->state == RS_TRACING)
     {
-      rb_tracepoint_disable(config->tracepoint);
+      // During process cleanup, event hooks are removed and tracepoint may have already have
+      // been GCed, so we need a sanity check before disabling the tracepoint.
+      if (RB_TYPE_P(config->tracepoint, T_DATA) && CLASS_OF(config->tracepoint) == cTracePoint) {
+        rb_tracepoint_disable(config->tracepoint);
+      }
     }
 
     if (in_fork(config))
@@ -364,6 +369,8 @@ VALUE rotoscope_state(VALUE self)
 
 void Init_rotoscope(void)
 {
+  cTracePoint = rb_const_get(rb_cObject, rb_intern("TracePoint"));
+
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
   rb_define_method(cRotoscope, "initialize", initialize, -1);
