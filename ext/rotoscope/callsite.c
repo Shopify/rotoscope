@@ -71,8 +71,9 @@ rs_callsite_t ruby_callsite(rb_trace_arg_t *trace_arg)
 
 void init_callsite()
 {
-  empty_ruby_string = rb_str_new_cstr("");
+  empty_ruby_string = rb_str_new_literal("");
   RB_OBJ_FREEZE(empty_ruby_string);
+  rb_global_variable(&empty_ruby_string);
 
   VALUE tmp_obj = rb_funcall(rb_cObject, rb_intern("new"), 0);
   rb_define_singleton_method(tmp_obj, "dummy", dummy, 1);
