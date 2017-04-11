@@ -70,15 +70,15 @@ end
 Sample output:
 
 ```
-entity,method_name,method_level,filepath,lineno,caller_entity,caller_method_name
-Dog,new,class,example/flattened_dog.rb,19,<ROOT>,unknown
-Dog,initialize,instance,example/flattened_dog.rb,19,Dog,new
-Dog,bark,instance,example/flattened_dog.rb,20,<ROOT>,unknown
-Noisemaker,speak,class,example/flattened_dog.rb,5,Dog,bark
-Noisemaker,puts,class,example/flattened_dog.rb,11,Noisemaker,speak
-IO,puts,instance,example/flattened_dog.rb,11,Noisemaker,puts
-IO,write,instance,example/flattened_dog.rb,11,IO,puts
-IO,write,instance,example/flattened_dog.rb,11,IO,puts
+entity,method_name,method_level,filepath,lineno,caller_entity,caller_method_name,caller_method_level
+Dog,new,class,example/flattened_dog.rb,19,<ROOT>,<UNKNOWN>,<UNKNOWN>
+Dog,initialize,instance,example/flattened_dog.rb,19,Dog,new,class
+Dog,bark,instance,example/flattened_dog.rb,20,<ROOT>,<UNKNOWN>,<UNKNOWN>
+Noisemaker,speak,class,example/flattened_dog.rb,5,Dog,bark,instance
+Noisemaker,puts,class,example/flattened_dog.rb,11,Noisemaker,speak,class
+IO,puts,instance,example/flattened_dog.rb,11,Noisemaker,puts,class
+IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
+IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
 ```
 
 ## API
