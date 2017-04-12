@@ -78,9 +78,9 @@ class Rotoscope
 
   private
 
-  Caller = Struct.new(:entity, :method_name)
-  DEFAULT_CALLER = Rotoscope::Caller.new('<ROOT>', 'unknown').freeze
-  CSV_HEADER_FIELDS = %w(entity method_name method_level filepath lineno caller_entity caller_method_name)
+  Caller = Struct.new(:entity, :method_name, :method_level)
+  DEFAULT_CALLER = Rotoscope::Caller.new('<ROOT>', '<UNKNOWN>', '<UNKNOWN>').freeze
+  CSV_HEADER_FIELDS = %w(entity method_name method_level filepath lineno caller_entity caller_method_name caller_method_level)
 
   def flatten_into(io)
     raise(Rotoscope::InvalidStateError, "#{inspect} must be closed to perform operation") unless closed?
@@ -94,12 +94,12 @@ class Rotoscope
         call_stack = []
       when 'call'
         caller = call_stack.last || DEFAULT_CALLER
-        line << { 'caller_entity' => caller.entity, 'caller_method_name' => caller.method_name }
-        call_stack << Rotoscope::Caller.new(line.fetch('entity'), line.fetch('method_name'))
+        line << { 'caller_entity' => caller.entity, 'caller_method_name' => caller.method_name, 'caller_method_level' => caller.method_level }
+        call_stack << Rotoscope::Caller.new(line.fetch('entity'), line.fetch('method_name'), line.fetch('method_level') )
         out_str = CSV_HEADER_FIELDS.map { |field| line.fetch(field) }.join(',')
         io.puts(out_str)
       when 'return'
-        caller = Rotoscope::Caller.new(line.fetch('entity'), line.fetch('method_name'))
+        caller = Rotoscope::Caller.new(line.fetch('entity'), line.fetch('method_name'), line.fetch('method_level'))
         call_stack.pop if call_stack.last == caller
       end
     end
