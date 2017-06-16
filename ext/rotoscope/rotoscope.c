@@ -8,16 +8,18 @@
 #include <sys/file.h>
 
 #include "rotoscope.h"
+#include "tracepoint.h"
 #include "callsite.h"
+#include "stack.h"
 
 VALUE cRotoscope, cTracePoint;
 
 // recursive with singleton2str
 static rs_class_desc_t class2str(VALUE klass);
 
-static int write_csv_header(FILE *log)
+static int write_csv_header(FILE *log, const char *header)
 {
-  return fprintf(log, RS_CSV_HEADER);
+  return fprintf(log, "%s", header);
 }
 
 static const char *evflag2name(rb_event_flag_t evflag)
@@ -156,18 +158,49 @@ static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg, const r
   rs_class_desc_t method_owner = tracearg_class(trace_arg);
   rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
 
+  VALUE method_name = tracearg_method_name(trace_arg);
+  VALUE filepath = callsite->filepath;
+
   return (rs_tracepoint_t){
       .event = evflag2name(event_flag),
-      .entity = method_owner.name,
-      .method_name = tracearg_method_name(trace_arg),
+      .entity = StringValueCStr(method_owner.name),
+      .method_name = StringValueCStr(method_name),
       .method_level = method_owner.method_level,
-      .filepath = callsite->filepath,
+      .filepath = StringValueCStr(filepath),
       .lineno = callsite->lineno};
 }
 
 static bool in_fork(Rotoscope *config)
 {
   return config->pid != getpid();
+}
+
+static bool trace_pops_stack(rs_tracepoint_t trace, rs_stack_t *stack)
+{
+  rs_stack_frame_t *last_frame = stack_peek(stack);
+  // Equality test between rs_tracepoint_t and rs_stack_t
+  return (!strcmp(last_frame->method_name, trace.method_name) &&
+          !strcmp(last_frame->entity, trace.entity) &&
+          !strcmp(last_frame->method_level, trace.method_level));
+}
+
+static void log_raw_trace(FILE *stream, rs_tracepoint_t trace)
+{
+  fprintf(stream, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
+}
+
+static void log_stack_frame(FILE *stream, rs_stack_t *stack, rs_tracepoint_t trace, rb_event_flag_t event)
+{
+  if (event & EVENT_CALL)
+  {
+    rs_stack_frame_t frame = stack_push(stack, trace);
+    fprintf(stream, RS_FLATTENED_CSV_FORMAT, RS_FLATTENED_CSV_VALUES(frame));
+  }
+  else if (event & EVENT_RETURN)
+  {
+    if (trace_pops_stack(trace, stack))
+      stack_pop(stack);
+  }
 }
 
 static void event_hook(VALUE tpval, void *data)
@@ -188,7 +221,18 @@ static void event_hook(VALUE tpval, void *data)
     return;
 
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
-  fprintf(config->log, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
+  if (!strcmp("Rotoscope", trace.entity))
+    return;
+
+  if (config->flatten_output)
+  {
+    rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
+    log_stack_frame(config->log, &config->stack, trace, event_flag);
+  }
+  else
+  {
+    log_raw_trace(config->log, trace);
+  }
 }
 
 static void close_log_handle(Rotoscope *config)
@@ -226,6 +270,7 @@ static void rs_gc_mark(Rotoscope *config)
 void rs_dealloc(Rotoscope *config)
 {
   close_log_handle(config);
+  free_stack(&config->stack);
   free(config->blacklist);
   free(config);
 }
@@ -276,15 +321,26 @@ void copy_blacklist(Rotoscope *config, VALUE blacklist) {
 VALUE initialize(int argc, VALUE *argv, VALUE self)
 {
   Rotoscope *config = get_config(self);
+  VALUE opts;
   VALUE output_path;
-  VALUE blacklist;
 
-  rb_scan_args(argc, argv, "11", &output_path, &blacklist);
+  VALUE config_flatten = false;
+  VALUE config_blacklist;
+
+  rb_scan_args(argc, argv, "1:", &output_path, &opts);
   Check_Type(output_path, T_STRING);
-  if (!NIL_P(blacklist)) {
-    copy_blacklist(config, blacklist);
+
+  if (!NIL_P(opts)) {
+    Check_Type(opts, T_HASH);
+    config_blacklist = rb_hash_aref(opts, ID2SYM(rb_intern("blacklist")));
+    config_flatten = rb_hash_aref(opts, ID2SYM(rb_intern("flatten")));
+
+    if (!NIL_P(config_blacklist)) {
+      copy_blacklist(config, config_blacklist);
+    }
   }
 
+  config->flatten_output = RTEST(config_flatten);
   config->log_path = output_path;
   config->log = fopen(StringValueCStr(config->log_path), "w");
 
@@ -293,8 +349,13 @@ VALUE initialize(int argc, VALUE *argv, VALUE self)
     fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n", StringValueCStr(config->log_path), strerror(errno));
     exit(1);
   }
-  write_csv_header(config->log);
 
+  if (config->flatten_output)
+    write_csv_header(config->log, RS_FLATTENED_CSV_HEADER);
+  else
+    write_csv_header(config->log, RS_CSV_HEADER);
+
+  init_stack(&config->stack, STACK_CAPACITY);
   config->state = RS_OPEN;
   return self;
 }
@@ -330,6 +391,7 @@ VALUE rotoscope_mark(VALUE self)
   Rotoscope *config = get_config(self);
   if (config->log != NULL && !in_fork(config))
   {
+    reset_stack(&config->stack, STACK_CAPACITY);
     fprintf(config->log, "---\n");
   }
   return Qnil;

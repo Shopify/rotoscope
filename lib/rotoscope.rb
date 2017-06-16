@@ -8,14 +8,13 @@ class Rotoscope
   InvalidStateError = Class.new(StandardError)
 
   class << self
-    def trace(dest, blacklist: [], flatten: false, &block)
-      if flatten
-        return flat_trace(dest, blacklist, &block)
-      end
+    def trace(dest, options = {}, &block)
+      config = { blacklist: [], flatten: false }.merge(options)
       if dest.is_a?(String)
-        return event_trace(dest, blacklist, &block)
+        event_trace(dest, config, &block)
+      else
+        io_event_trace(dest, config, &block)
       end
-      io_event_trace(dest, blacklist, &block)
     end
 
     private
@@ -27,30 +26,24 @@ class Rotoscope
       temp_file.close! if temp_file
     end
 
-    def temp_event_trace(blacklist, block)
+    def temp_event_trace(config, block)
       with_temp_file("rotoscope_output") do |temp_file|
-        rs = event_trace(temp_file.path, blacklist, &block)
+        rs = event_trace(temp_file.path, config, &block)
         yield rs
         rs
       end
     end
 
-    def flat_trace(dest, blacklist, &block)
-      temp_event_trace(blacklist, block) do |rs|
-        rs.flatten(dest)
-      end
-    end
-
-    def io_event_trace(dest_io, blacklist, &block)
-      temp_event_trace(blacklist, block) do |rs|
+    def io_event_trace(dest_io, config, &block)
+      temp_event_trace(config, block) do |rs|
         File.open(rs.log_path) do |rs_file|
           IO.copy_stream(rs_file, dest_io)
         end
       end
     end
 
-    def event_trace(dest_path, blacklist)
-      rs = Rotoscope.new(dest_path, blacklist)
+    def event_trace(dest_path, config)
+      rs = Rotoscope.new(dest_path, config)
       rs.trace { yield rs }
       rs
     ensure
