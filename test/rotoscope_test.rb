@@ -40,7 +40,7 @@ OUTER_FIXTURE_PATH = File.expand_path('../fixture_outer.rb', __FILE__)
 
 class RotoscopeTest < MiniTest::Test
   def setup
-    @logfile = File.expand_path('tmp/test.csv.gz')
+    @logfile = File.expand_path('tmp/test.csv')
   end
 
   def teardown
@@ -299,6 +299,7 @@ class RotoscopeTest < MiniTest::Test
       foo = FixtureOuter.new
       foo.do_work
     end
+
     assert_equal [
       { entity: "FixtureOuter", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
       { entity: "FixtureOuter", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "new", caller_method_level: "class" },

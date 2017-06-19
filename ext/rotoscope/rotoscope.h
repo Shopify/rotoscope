@@ -7,34 +7,31 @@
 #define EVENT_CALL (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
 
-#define RS_CSV_VALUES(trace) \
-    trace.event, \
+#define CLASS_METHOD "class"
+#define INSTANCE_METHOD "instance"
+
+#define STACK_CAPACITY 500
+
+#define _RS_SHARED_CSV_HEADER "entity,method_name,method_level,filepath,lineno"
+#define _RS_SHARED_CSV_FORMAT "\"%s\",\"%s\",%s,\"%s\",%d"
+#define _RS_SHARED_CSV_VALUES(trace) \
     trace.entity, \
     trace.method_name, \
     trace.method_level, \
     trace.filepath, \
     trace.lineno
-#define RS_CSV_HEADER "event,entity,method_name,method_level,filepath,lineno\n"
-#define RS_CSV_FORMAT "%s,\"%s\",\"%s\",%s,\"%s\",%d\n"
 
+#define RS_CSV_HEADER "event," _RS_SHARED_CSV_HEADER
+#define RS_CSV_FORMAT "%s," _RS_SHARED_CSV_FORMAT
+#define RS_CSV_VALUES(trace) trace.event, _RS_SHARED_CSV_VALUES(trace)
+
+#define RS_FLATTENED_CSV_HEADER _RS_SHARED_CSV_HEADER ",caller_entity,caller_method_name,caller_method_level"
+#define RS_FLATTENED_CSV_FORMAT _RS_SHARED_CSV_FORMAT ",\"%s\",\"%s\",%s"
 #define RS_FLATTENED_CSV_VALUES(frame) \
-    trace.entity, \
-    trace.method_name, \
-    trace.method_level, \
-    trace.filepath, \
-    trace.lineno, \
+    _RS_SHARED_CSV_VALUES(frame), \
     frame.caller->entity, \
     frame.caller->method_name, \
     frame.caller->method_level
-#define RS_FLATTENED_CSV_HEADER "entity,method_name,method_level,filepath,lineno, caller_entity, caller_method_name, caller_method_level\n"
-#define RS_FLATTENED_CSV_FORMAT "\"%s\",\"%s\",%s,\"%s\",%d,\"%s\",\"%s\",%s\n"
-
-#define CLASS_METHOD "class"
-#define INSTANCE_METHOD "instance"
-
-#define UNKNOWN_FILE_PATH "Unknown"
-
-#define STACK_CAPACITY 500
 
 typedef enum {
   RS_CLOSED = 0,

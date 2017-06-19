@@ -19,7 +19,7 @@ static rs_class_desc_t class2str(VALUE klass);
 
 static int write_csv_header(FILE *log, const char *header)
 {
-  return fprintf(log, "%s", header);
+  return fprintf(log, "%s\n", header);
 }
 
 static const char *evflag2name(rb_event_flag_t evflag)
@@ -186,7 +186,7 @@ static bool trace_pops_stack(rs_tracepoint_t trace, rs_stack_t *stack)
 
 static void log_raw_trace(FILE *stream, rs_tracepoint_t trace)
 {
-  fprintf(stream, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
+  fprintf(stream, RS_CSV_FORMAT "\n", RS_CSV_VALUES(trace));
 }
 
 static void log_stack_frame(FILE *stream, rs_stack_t *stack, rs_tracepoint_t trace, rb_event_flag_t event)
@@ -194,7 +194,7 @@ static void log_stack_frame(FILE *stream, rs_stack_t *stack, rs_tracepoint_t tra
   if (event & EVENT_CALL)
   {
     rs_stack_frame_t frame = stack_push(stack, trace);
-    fprintf(stream, RS_FLATTENED_CSV_FORMAT, RS_FLATTENED_CSV_VALUES(frame));
+    fprintf(stream, RS_FLATTENED_CSV_FORMAT "\n", RS_FLATTENED_CSV_VALUES(frame));
   }
   else if (event & EVENT_RETURN)
   {
