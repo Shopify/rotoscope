@@ -28,10 +28,10 @@
 #define RS_FLATTENED_CSV_HEADER _RS_SHARED_CSV_HEADER ",caller_entity,caller_method_name,caller_method_level"
 #define RS_FLATTENED_CSV_FORMAT _RS_SHARED_CSV_FORMAT ",\"%s\",\"%s\",%s"
 #define RS_FLATTENED_CSV_VALUES(frame) \
-    _RS_SHARED_CSV_VALUES(frame), \
-    frame.caller->entity, \
-    frame.caller->method_name, \
-    frame.caller->method_level
+    _RS_SHARED_CSV_VALUES(frame.tp), \
+    frame.caller->tp.entity, \
+    frame.caller->tp.method_name, \
+    frame.caller->tp.method_level
 
 typedef enum {
   RS_CLOSED = 0,

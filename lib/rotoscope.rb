@@ -5,11 +5,9 @@ require 'tempfile'
 require 'csv'
 
 class Rotoscope
-  InvalidStateError = Class.new(StandardError)
-
   class << self
-    def trace(dest, options = {}, &block)
-      config = { blacklist: [], flatten: false }.merge(options)
+    def trace(dest, blacklist: [], flatten: false, &block)
+      config = { blacklist: blacklist, flatten: flatten }
       if dest.is_a?(String)
         event_trace(dest, config, &block)
       else
@@ -51,16 +49,6 @@ class Rotoscope
     end
   end
 
-  def flatten(dest)
-    if dest.is_a?(String)
-      File.open(dest, 'w') do |file|
-        flatten_into(file)
-      end
-    else
-      flatten_into(dest)
-    end
-  end
-
   def closed?
     state == :closed
   end
@@ -70,33 +58,6 @@ class Rotoscope
   end
 
   private
-
-  Caller = Struct.new(:entity, :method_name, :method_level)
-  DEFAULT_CALLER = Rotoscope::Caller.new('<ROOT>', '<UNKNOWN>', '<UNKNOWN>').freeze
-  CSV_HEADER_FIELDS = %w(entity method_name method_level filepath lineno caller_entity caller_method_name caller_method_level)
-
-  def flatten_into(io)
-    raise(Rotoscope::InvalidStateError, "#{inspect} must be closed to perform operation") unless closed?
-
-    call_stack = []
-    io.puts(CSV_HEADER_FIELDS.join(','))
-
-    CSV.foreach(log_path, headers: true) do |line|
-      case line.fetch('event')
-      when '---'
-        call_stack = []
-      when 'call'
-        caller = call_stack.last || DEFAULT_CALLER
-        line << { 'caller_entity' => caller.entity, 'caller_method_name' => caller.method_name, 'caller_method_level' => caller.method_level }
-        call_stack << Rotoscope::Caller.new(line.fetch('entity'), line.fetch('method_name'), line.fetch('method_level') )
-        out_str = CSV_HEADER_FIELDS.map { |field| line.fetch(field) }.join(',')
-        io.puts(out_str)
-      when 'return'
-        caller = Rotoscope::Caller.new(line.fetch('entity'), line.fetch('method_name'), line.fetch('method_level'))
-        call_stack.pop if call_stack.last == caller
-      end
-    end
-  end
 
   def short_log_path
     return log_path if log_path.length < 40

@@ -85,82 +85,9 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_flatten
-    flatten_fh = Tempfile.new("flattened")
-    rs = Rotoscope.new(@logfile)
-    rs.trace { Example.new.normal_method }
-    rs.close
-    rs.flatten(flatten_fh.path)
-    contents = flatten_fh.read
-
-    assert_equal [
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new", caller_method_level: "class" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-    ], parse_and_normalize(contents)
-  end
-
-  def test_flatten_raises_if_handle_open
-    flatten_fh = Tempfile.new("flattened")
-    rs = Rotoscope.new(@logfile)
-    rs.trace { Example.new.normal_method }
-
-    refute rs.closed?
-    assert_raises Rotoscope::InvalidStateError do
-      rs.flatten(flatten_fh.path)
+    contents = rotoscope_trace(flatten: true) do
+      Example.new.normal_method
     end
-  end
-
-  def test_flatten_removes_orphaned_returns
-    flatten_fh = Tempfile.new("flattened")
-    rs = Rotoscope.new(@logfile)
-
-    rs.start_trace
-    Example.new.normal_method
-    rs.stop_trace
-    rs.close
-
-    rs.flatten(flatten_fh.path)
-    contents = flatten_fh.read
-
-    assert_equal [
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new", caller_method_level: "class" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-    ], parse_and_normalize(contents)
-
-    assert_frames_consistent contents
-  end
-
-  def test_flatten_supports_io_objects
-    rs = Rotoscope.new(@logfile)
-    rs.trace { Example.new.normal_method }
-    rs.close
-
-    contents = Tempfile.open('flattened_debug') do |tracefile|
-      rs.flatten(tracefile)
-      refute_predicate tracefile, :closed?
-      tracefile.rewind
-      tracefile.read
-    end
-
-    assert_equal [
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new", caller_method_level: "class" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-    ], parse_and_normalize(contents)
-  end
-
-  def test_flatten_supports_io_like_objects
-    rs = Rotoscope.new(@logfile)
-    rs.trace { Example.new.normal_method }
-    rs.close
-
-    zip_path = File.expand_path('../../tmp/trace.gz', __FILE__)
-    Zlib::GzipWriter.open(zip_path) do |gz|
-      rs.flatten(gz)
-      refute_predicate gz, :closed?
-    end
-    contents = unzip(zip_path)
 
     assert_equal [
       { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },

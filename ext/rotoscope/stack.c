@@ -3,7 +3,37 @@
 #include <string.h>
 #include "stack.h"
 
-rs_stack_frame_t root_context;
+static void check_buffer(rs_stack_frame_t *contents)
+{
+  if (contents == NULL)
+  {
+    fprintf(stderr, "Not enough memory to allocate stack\n");
+    exit(1);
+  }
+}
+
+static void insert_root_node(rs_stack_t *stack)
+{
+  rs_tracepoint_t root_trace = (rs_tracepoint_t) {
+      .entity = "<ROOT>",
+      .event = UNKNOWN_STR,
+      .method_name = UNKNOWN_STR,
+      .method_level = UNKNOWN_STR,
+      .filepath = UNKNOWN_STR,
+      .lineno = 0
+  };
+
+  stack_push(stack, root_trace);
+}
+
+static void resize_buffer(rs_stack_t *stack)
+{
+  unsigned int newsize = stack->capacity * 2;
+  stack->contents = realloc(stack->contents, sizeof(rs_stack_frame_t) * newsize);
+  check_buffer(stack->contents);
+
+  stack->capacity = newsize;
+}
 
 bool stack_full(rs_stack_t *stack)
 {
@@ -15,15 +45,6 @@ bool stack_empty(rs_stack_t *stack)
   return stack->top < 0;
 }
 
-static void resize_buffer(rs_stack_t *stack)
-{
-  unsigned int newsize = stack->capacity * 2;
-  rs_stack_frame_t *new_contents = (rs_stack_frame_t *)malloc(sizeof(rs_stack_frame_t) * newsize);
-  memcpy(new_contents, stack->contents, sizeof(rs_stack_frame_t) * stack->capacity);
-  stack->capacity = newsize;
-  stack->contents = new_contents;
-}
-
 rs_stack_frame_t stack_push(rs_stack_t *stack, rs_tracepoint_t trace)
 {
   if (stack_full(stack))
@@ -32,13 +53,8 @@ rs_stack_frame_t stack_push(rs_stack_t *stack, rs_tracepoint_t trace)
   }
 
   rs_stack_frame_t new_frame = (rs_stack_frame_t){
-    .event = trace.event,
-    .method_name = trace.method_name,
-    .entity = trace.entity,
-    .method_level = trace.method_level,
-    .filepath = trace.filepath,
-    .lineno = trace.lineno,
-    .caller = stack_peek(stack),
+    .tp = trace,
+    .caller = stack_peek(stack)
   };
 
   stack->contents[++stack->top] = new_frame;
@@ -49,7 +65,7 @@ rs_stack_frame_t stack_pop(rs_stack_t *stack)
 {
   if (stack_empty(stack))
   {
-    fprintf(stderr, "Stack has nothing to pop!\n");
+    fprintf(stderr, "Stack is empty!\n");
     exit(1);
   }
 
@@ -60,18 +76,19 @@ rs_stack_frame_t *stack_peek(rs_stack_t *stack)
 {
   if (stack_empty(stack))
   {
-    return &root_context;
+    return NULL;
   }
 
   return &stack->contents[stack->top];
 }
 
-void reset_stack(rs_stack_t *stack, unsigned int capacity)
+void stack_reset(rs_stack_t *stack, unsigned int capacity)
 {
   stack->top = -1;
+  insert_root_node(stack);
 }
 
-void free_stack(rs_stack_t *stack)
+void stack_free(rs_stack_t *stack)
 {
   free(stack->contents);
   stack->contents = NULL;
@@ -79,26 +96,14 @@ void free_stack(rs_stack_t *stack)
   stack->capacity = 0;
 }
 
-void init_stack(rs_stack_t *stack, unsigned int capacity)
+void stack_init(rs_stack_t *stack, unsigned int capacity)
 {
-  rs_stack_frame_t *contents;
-  root_context = (rs_stack_frame_t) {
-    .entity = "<ROOT>",
-    .event = UNKNOWN_STR,
-    .method_name = UNKNOWN_STR,
-    .method_level = UNKNOWN_STR,
-    .filepath = UNKNOWN_STR,
-    .lineno = 0,
-    .caller = NULL
-  };
-
-  contents = (rs_stack_frame_t *)malloc(sizeof(rs_stack_frame_t) * capacity);
-  if (contents == NULL) {
-    fprintf(stderr, "Not enough memory to allocate stack\n");
-    exit(1);
-  }
+  rs_stack_frame_t *contents = (rs_stack_frame_t *)malloc(sizeof(rs_stack_frame_t) * capacity);
+  check_buffer(contents);
 
   stack->contents = contents;
   stack->capacity = capacity;
   stack->top = -1;
+
+  insert_root_node(stack);
 }

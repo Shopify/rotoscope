@@ -175,13 +175,11 @@ static bool in_fork(Rotoscope *config)
   return config->pid != getpid();
 }
 
-static bool trace_pops_stack(rs_tracepoint_t trace, rs_stack_t *stack)
+static bool tracecmp(rs_tracepoint_t *a, rs_tracepoint_t *b)
 {
-  rs_stack_frame_t *last_frame = stack_peek(stack);
-  // Equality test between rs_tracepoint_t and rs_stack_t
-  return (!strcmp(last_frame->method_name, trace.method_name) &&
-          !strcmp(last_frame->entity, trace.entity) &&
-          !strcmp(last_frame->method_level, trace.method_level));
+  return (!strcmp(a->method_name, b->method_name) &&
+          !strcmp(a->entity, b->entity) &&
+          !strcmp(a->method_level, b->method_level));
 }
 
 static void log_raw_trace(FILE *stream, rs_tracepoint_t trace)
@@ -198,7 +196,7 @@ static void log_stack_frame(FILE *stream, rs_stack_t *stack, rs_tracepoint_t tra
   }
   else if (event & EVENT_RETURN)
   {
-    if (trace_pops_stack(trace, stack))
+    if (tracecmp(&trace, &stack_peek(stack)->tp))
       stack_pop(stack);
   }
 }
@@ -270,7 +268,7 @@ static void rs_gc_mark(Rotoscope *config)
 void rs_dealloc(Rotoscope *config)
 {
   close_log_handle(config);
-  free_stack(&config->stack);
+  stack_free(&config->stack);
   free(config->blacklist);
   free(config);
 }
@@ -355,7 +353,7 @@ VALUE initialize(int argc, VALUE *argv, VALUE self)
   else
     write_csv_header(config->log, RS_CSV_HEADER);
 
-  init_stack(&config->stack, STACK_CAPACITY);
+  stack_init(&config->stack, STACK_CAPACITY);
   config->state = RS_OPEN;
   return self;
 }
@@ -391,7 +389,7 @@ VALUE rotoscope_mark(VALUE self)
   Rotoscope *config = get_config(self);
   if (config->log != NULL && !in_fork(config))
   {
-    reset_stack(&config->stack, STACK_CAPACITY);
+    stack_reset(&config->stack, STACK_CAPACITY);
     fprintf(config->log, "---\n");
   }
   return Qnil;

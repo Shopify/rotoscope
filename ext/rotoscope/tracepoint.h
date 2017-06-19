@@ -1,7 +1,7 @@
 #ifndef _INC_ROTOSCOPE_TRACEPOINT_H_
 #define _INC_ROTOSCOPE_TRACEPOINT_H_
 
-typedef struct
+typedef struct rs_tracepoint_t
 {
   const char *event;
   const char *method_name;

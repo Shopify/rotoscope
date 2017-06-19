@@ -7,12 +7,7 @@
 
 typedef struct rs_stack_frame_t
 {
-  const char *event;
-  const char *method_name;
-  const char *entity;
-  const char *method_level;
-  const char *filepath;
-  unsigned int lineno;
+  struct rs_tracepoint_t tp;
   struct rs_stack_frame_t *caller;
 } rs_stack_frame_t;
 
@@ -23,9 +18,9 @@ typedef struct
   rs_stack_frame_t *contents;
 } rs_stack_t;
 
-void init_stack(rs_stack_t *stack, unsigned int capacity);
-void reset_stack(rs_stack_t *stack, unsigned int capacity);
-void free_stack(rs_stack_t *stack);
+void stack_init(rs_stack_t *stack, unsigned int capacity);
+void stack_reset(rs_stack_t *stack, unsigned int capacity);
+void stack_free(rs_stack_t *stack);
 rs_stack_frame_t stack_push(rs_stack_t *stack, rs_tracepoint_t trace);
 bool stack_empty(rs_stack_t *stack);
 bool stack_full(rs_stack_t *stack);
