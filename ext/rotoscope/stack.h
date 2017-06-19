@@ -3,6 +3,8 @@
 #include <stdbool.h>
 #include "tracepoint.h"
 
+#define UNKNOWN_STR "<UNKNOWN>"
+
 typedef struct rs_stack_frame_t
 {
   const char *event;

@@ -68,8 +68,7 @@ rs_stack_frame_t *stack_peek(rs_stack_t *stack)
 
 void reset_stack(rs_stack_t *stack, unsigned int capacity)
 {
-  free_stack(stack);
-  init_stack(stack, capacity);
+  stack->top = -1;
 }
 
 void free_stack(rs_stack_t *stack)
@@ -84,9 +83,13 @@ void init_stack(rs_stack_t *stack, unsigned int capacity)
 {
   rs_stack_frame_t *contents;
   root_context = (rs_stack_frame_t) {
-    .method_level = "<UNKNOWN>",
-    .method_name = "<UNKNOWN>",
-    .entity = "<ROOT>"
+    .entity = "<ROOT>",
+    .event = UNKNOWN_STR,
+    .method_name = UNKNOWN_STR,
+    .method_level = UNKNOWN_STR,
+    .filepath = UNKNOWN_STR,
+    .lineno = 0,
+    .caller = NULL
   };
 
   contents = (rs_stack_frame_t *)malloc(sizeof(rs_stack_frame_t) * capacity);
