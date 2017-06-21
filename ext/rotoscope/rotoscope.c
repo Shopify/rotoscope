@@ -323,26 +323,16 @@ void copy_blacklist(Rotoscope *config, VALUE blacklist) {
 VALUE initialize(int argc, VALUE *argv, VALUE self)
 {
   Rotoscope *config = get_config(self);
-  VALUE opts;
-  VALUE output_path;
+  VALUE output_path, blacklist, flatten;
 
-  VALUE config_flatten = false;
-  VALUE config_blacklist;
-
-  rb_scan_args(argc, argv, "1:", &output_path, &opts);
+  rb_scan_args(argc, argv, "12", &output_path, &blacklist, &flatten);
   Check_Type(output_path, T_STRING);
 
-  if (!NIL_P(opts)) {
-    Check_Type(opts, T_HASH);
-    config_blacklist = rb_hash_aref(opts, ID2SYM(rb_intern("blacklist")));
-    config_flatten = rb_hash_aref(opts, ID2SYM(rb_intern("flatten")));
-
-    if (!NIL_P(config_blacklist)) {
-      copy_blacklist(config, config_blacklist);
-    }
+  if (!NIL_P(blacklist)) {
+    copy_blacklist(config, blacklist);
   }
 
-  config->flatten_output = RTEST(config_flatten);
+  config->flatten_output = RTEST(flatten);
   config->log_path = output_path;
   config->log = fopen(StringValueCStr(config->log_path), "w");
 

@@ -301,8 +301,8 @@ class RotoscopeTest < MiniTest::Test
     assert_equal csv_string.scan(/\Acall/).size, csv_string.scan(/\Areturn/).size
   end
 
-  def rotoscope_trace(config = {})
-    Rotoscope.trace(@logfile, config) { |rotoscope| yield rotoscope }
+  def rotoscope_trace(blacklist: [], flatten: false)
+    Rotoscope.trace(@logfile, blacklist: blacklist, flatten: flatten) { |rotoscope| yield rotoscope }
     File.read(@logfile)
   end
 

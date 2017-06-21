@@ -41,7 +41,7 @@ class Rotoscope
     end
 
     def event_trace(dest_path, config)
-      rs = Rotoscope.new(dest_path, config)
+      rs = Rotoscope.new(dest_path, config[:blacklist], config[:flatten])
       rs.trace { yield rs }
       rs
     ensure
