@@ -7,16 +7,15 @@
 
 static void insert_root_node(rs_stack_t *stack)
 {
-  char *owned_unknown_str = ALLOC_N(char, strlen(UNKNOWN_STR) + 1);
-  strcpy(owned_unknown_str, UNKNOWN_STR);
-  rs_tracepoint_t *root_trace = rs_tracepoint_init((rs_tracepoint_args) {
-    .event = owned_unknown_str,
-    .entity = "<ROOT>",
-    .filepath = owned_unknown_str,
-    .method_name = owned_unknown_str,
-    .method_level = owned_unknown_str,
+  VALUE rb_unknown_str = rb_str_new_cstr(UNKNOWN_STR);
+  rs_tracepoint_t root_trace = (rs_tracepoint_t) {
+    .event = UNKNOWN_STR,
+    .entity = rb_str_new_cstr("<ROOT>"),
+    .filepath = rb_unknown_str,
+    .method_name = rb_unknown_str,
+    .method_level = UNKNOWN_STR,
     .lineno = 0
-  });
+  };
   rs_stack_push(stack, root_trace);
 }
 
@@ -38,7 +37,7 @@ bool rs_stack_empty(rs_stack_t *stack)
   return stack->top < 0;
 }
 
-rs_stack_frame_t rs_stack_push(rs_stack_t *stack, rs_tracepoint_t *trace)
+rs_stack_frame_t rs_stack_push(rs_stack_t *stack, rs_tracepoint_t trace)
 {
   if (rs_stack_full(stack))
   {
@@ -99,4 +98,15 @@ void rs_stack_init(rs_stack_t *stack, unsigned int capacity)
   stack->top = -1;
 
   insert_root_node(stack);
+}
+
+void rs_stack_mark(rs_stack_t *stack)
+{
+  if (rs_stack_empty(stack)) return;
+
+  for (int i=0; i<=stack->top; i++)
+  {
+    rs_stack_frame_t frame = stack->contents[i];
+    rs_tracepoint_mark(&frame.tp);
+  }
 }

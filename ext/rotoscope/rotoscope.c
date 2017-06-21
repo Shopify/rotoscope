@@ -153,7 +153,7 @@ static VALUE tracearg_method_name(rb_trace_arg_t *trace_arg)
   return rb_sym2str(rb_tracearg_method_id(trace_arg));
 }
 
-static rs_tracepoint_t *extract_full_tracevals(rb_trace_arg_t *trace_arg, const rs_callsite_t *callsite)
+static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg, const rs_callsite_t *callsite)
 {
   rs_class_desc_t method_owner = tracearg_class(trace_arg);
   rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
@@ -161,14 +161,14 @@ static rs_tracepoint_t *extract_full_tracevals(rb_trace_arg_t *trace_arg, const 
   VALUE method_name = tracearg_method_name(trace_arg);
   VALUE filepath = callsite->filepath;
 
-  return rs_tracepoint_init((rs_tracepoint_args) {
+  return (rs_tracepoint_t) {
     .event = evflag2name(event_flag),
-    .entity = StringValueCStr(method_owner.name),
-    .filepath = StringValueCStr(filepath),
-    .method_name = StringValueCStr(method_name),
+    .entity = method_owner.name,
+    .filepath = filepath,
+    .method_name = method_name,
     .method_level = method_owner.method_level,
     .lineno = callsite->lineno
-  });
+  };
 }
 
 static bool in_fork(Rotoscope *config)
@@ -178,17 +178,17 @@ static bool in_fork(Rotoscope *config)
 
 static bool tracecmp(rs_tracepoint_t *a, rs_tracepoint_t *b)
 {
-  return (!strcmp(a->method_name, b->method_name) &&
-          !strcmp(a->entity, b->entity) &&
+  return (!strcmp(StringValueCStr(a->method_name), StringValueCStr(b->method_name)) &&
+          !strcmp(StringValueCStr(a->entity), StringValueCStr(b->entity)) &&
           !strcmp(a->method_level, b->method_level));
 }
 
-static void log_raw_trace(FILE *stream, rs_tracepoint_t *trace)
+static void log_raw_trace(FILE *stream, rs_tracepoint_t trace)
 {
   fprintf(stream, RS_CSV_FORMAT "\n", RS_CSV_VALUES(trace));
 }
 
-static void log_stack_frame(FILE *stream, rs_stack_t *stack, rs_tracepoint_t *trace, rb_event_flag_t event)
+static void log_stack_frame(FILE *stream, rs_stack_t *stack, rs_tracepoint_t trace, rb_event_flag_t event)
 {
   if (event & EVENT_CALL)
   {
@@ -197,11 +197,8 @@ static void log_stack_frame(FILE *stream, rs_stack_t *stack, rs_tracepoint_t *tr
   }
   else if (event & EVENT_RETURN)
   {
-    if (tracecmp(trace, rs_stack_peek(stack)->tp))
-    {
-      rs_stack_frame_t popped = rs_stack_pop(stack);
-      rs_tracepoint_free(popped.tp);
-    }
+    if (tracecmp(&trace, &rs_stack_peek(stack)->tp))
+      rs_stack_pop(stack);
   }
 }
 
@@ -222,8 +219,8 @@ static void event_hook(VALUE tpval, void *data)
   if (rejected_path(trace_path.filepath, config))
     return;
 
-  rs_tracepoint_t *trace = extract_full_tracevals(trace_arg, &trace_path);
-  if (!strcmp("Rotoscope", trace->entity))
+  rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
+  if (!strcmp("Rotoscope", StringValueCStr(trace.entity)))
     return;
 
   if (config->flatten_output)
@@ -267,6 +264,7 @@ static void rs_gc_mark(Rotoscope *config)
 {
   rb_gc_mark(config->log_path);
   rb_gc_mark(config->tracepoint);
+  rs_stack_mark(&config->stack);
 }
 
 void rs_dealloc(Rotoscope *config)
