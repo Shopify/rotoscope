@@ -102,8 +102,6 @@ void rs_stack_init(rs_stack_t *stack, unsigned int capacity)
 
 void rs_stack_mark(rs_stack_t *stack)
 {
-  if (rs_stack_empty(stack)) return;
-
   for (int i=0; i<=stack->top; i++)
   {
     rs_stack_frame_t frame = stack->contents[i];

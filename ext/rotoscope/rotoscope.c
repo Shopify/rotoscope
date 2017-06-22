@@ -178,9 +178,9 @@ static bool in_fork(Rotoscope *config)
 
 static bool tracecmp(rs_tracepoint_t *a, rs_tracepoint_t *b)
 {
-  return (!strcmp(StringValueCStr(a->method_name), StringValueCStr(b->method_name)) &&
-          !strcmp(StringValueCStr(a->entity), StringValueCStr(b->entity)) &&
-          !strcmp(a->method_level, b->method_level));
+  return (!rb_str_cmp(a->method_name, b->method_name) &&
+          !rb_str_cmp(a->entity, b->entity) &&
+          a->method_level == b->method_level);
 }
 
 static void log_raw_trace(FILE *stream, rs_tracepoint_t trace)
