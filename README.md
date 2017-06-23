@@ -102,21 +102,21 @@ IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
 
 #### `Rotoscope::trace(dest, blacklist: [], flatten: false)`
 
-Writes all calls and returns of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. For details on the `flatten` option, see [`Rotoscope#flatten`](#rotoscopeflatten).
+Writes all calls and returns of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. The `flatten` option reduces the output data to a list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`.
 
 ```ruby
 Rotoscope.trace(dest) { |rs| ... }
 # or...
-Rotoscope.trace(dest, blacklist: ["/.gem/", "/gems/"], flatten: true) { |rs| ... }
+Rotoscope.trace(dest, blacklist: ["/.gem/"], flatten: true) { |rs| ... }
 ```
 
-#### `Rotoscope::new(dest, blacklist=[])`
+#### `Rotoscope::new(dest, blacklist = [], flatten = false)`
 
-Similar to `Rotoscope::trace`, but allows fine-grain control with `Rotoscope#start_trace` and `Rotoscope#stop_trace`.
+Same interface as `Rotoscope::trace`, but returns a `Rotoscope` instance, allowing fine-grain control via `Rotoscope#start_trace` and `Rotoscope#stop_trace`.
 ```ruby
 rs = Rotoscope.new(dest)
 # or...
-rs = Rotoscope.new(dest, ["/.gem/", "/gems/"])
+rs = Rotoscope.new(dest, ["/.gem/"], true)
 ```
 
 ---
@@ -154,20 +154,6 @@ rs = Rotoscope.new(dest)
 rs.start_trace
 # code to trace...
 rs.stop_trace
-```
-
-#### `Rotoscope#flatten(dest)`
-Reduces the output data to a list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `unknown`. `dest` is either a filename or an instance of IO, or IO-like, object.
-
-
-```ruby
-rs = Rotoscope.new(dest)
-rs.trace { |rotoscope| ... }
-rs.close
-
-rs.flatten('tmp/flattened.csv')
-# or ...
-Zlib::GzipWriter.open(dest) { |gz| rs.flatten(gz) }
 ```
 
 #### `Rotoscope#mark`
