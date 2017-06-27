@@ -48,7 +48,7 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_new
-    rs = Rotoscope.new(@logfile)
+    rs = Rotoscope.new(@logfile, blacklist: ['tmp'], flatten: true)
     assert rs.is_a?(Rotoscope)
   end
 

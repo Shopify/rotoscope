@@ -6,6 +6,10 @@ require 'csv'
 
 class Rotoscope
   class << self
+    def new(output_path, blacklist: [], flatten: false)
+      super(output_path, blacklist, flatten)
+    end
+
     def trace(dest, blacklist: [], flatten: false, &block)
       config = { blacklist: blacklist, flatten: flatten }
       if dest.is_a?(String)
@@ -41,7 +45,7 @@ class Rotoscope
     end
 
     def event_trace(dest_path, config)
-      rs = Rotoscope.new(dest_path, config[:blacklist], config[:flatten])
+      rs = Rotoscope.new(dest_path, blacklist: config[:blacklist], flatten: config[:flatten])
       rs.trace { yield rs }
       rs
     ensure
