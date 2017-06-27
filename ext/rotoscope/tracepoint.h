@@ -1,8 +1,9 @@
 #ifndef _INC_ROTOSCOPE_TRACEPOINT_H_
 #define _INC_ROTOSCOPE_TRACEPOINT_H_
 
-typedef struct rs_tracepoint_t
-{
+#include "ruby.h"
+
+typedef struct rs_tracepoint_t {
   const char *event;
   VALUE entity;
   VALUE filepath;

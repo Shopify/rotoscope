@@ -5,14 +5,12 @@
 
 #define UNKNOWN_STR "<UNKNOWN>"
 
-typedef struct rs_stack_frame_t
-{
+typedef struct rs_stack_frame_t {
   struct rs_tracepoint_t tp;
   struct rs_stack_frame_t *caller;
 } rs_stack_frame_t;
 
-typedef struct
-{
+typedef struct {
   int capacity;
   int top;
   rs_stack_frame_t *contents;
