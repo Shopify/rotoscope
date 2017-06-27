@@ -110,13 +110,13 @@ Rotoscope.trace(dest) { |rs| ... }
 Rotoscope.trace(dest, blacklist: ["/.gem/"], flatten: true) { |rs| ... }
 ```
 
-#### `Rotoscope::new(dest, blacklist = [], flatten = false)`
+#### `Rotoscope::new(dest, blacklist: [], flatten: false)`
 
 Same interface as `Rotoscope::trace`, but returns a `Rotoscope` instance, allowing fine-grain control via `Rotoscope#start_trace` and `Rotoscope#stop_trace`.
 ```ruby
 rs = Rotoscope.new(dest)
 # or...
-rs = Rotoscope.new(dest, ["/.gem/"], true)
+rs = Rotoscope.new(dest, blacklist: ["/.gem/"], flatten: true)
 ```
 
 ---
