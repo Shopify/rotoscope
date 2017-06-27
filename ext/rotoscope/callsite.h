@@ -1,8 +1,7 @@
 #ifndef _INC_CALLSITE_H_
 #define _INC_CALLSITE_H_
 
-typedef struct
-{
+typedef struct {
   VALUE filepath;
   unsigned int lineno;
 } rs_callsite_t;

@@ -14,24 +14,25 @@
 
 #define _RS_SHARED_CSV_HEADER "entity,method_name,method_level,filepath,lineno"
 #define _RS_SHARED_CSV_FORMAT "\"%s\",\"%s\",%s,\"%s\",%d"
-#define _RS_SHARED_CSV_VALUES(trace) \
-    StringValueCStr(trace.entity), \
-    StringValueCStr(trace.method_name), \
-    trace.method_level, \
-    StringValueCStr(trace.filepath), \
-    trace.lineno
+#define _RS_SHARED_CSV_VALUES(trace)                                 \
+  StringValueCStr(trace.entity), StringValueCStr(trace.method_name), \
+      trace.method_level, StringValueCStr(trace.filepath), trace.lineno
 
 #define RS_CSV_HEADER "event," _RS_SHARED_CSV_HEADER
+
 #define RS_CSV_FORMAT "%s," _RS_SHARED_CSV_FORMAT
 #define RS_CSV_VALUES(trace) trace.event, _RS_SHARED_CSV_VALUES(trace)
 
-#define RS_FLATTENED_CSV_HEADER _RS_SHARED_CSV_HEADER ",caller_entity,caller_method_name,caller_method_level"
+#define RS_FLATTENED_CSV_HEADER                      \
+  _RS_SHARED_CSV_HEADER                              \
+  ",caller_entity,caller_method_name,caller_method_" \
+  "level"
 #define RS_FLATTENED_CSV_FORMAT _RS_SHARED_CSV_FORMAT ",\"%s\",\"%s\",%s"
-#define RS_FLATTENED_CSV_VALUES(frame) \
-    _RS_SHARED_CSV_VALUES(frame.tp), \
-    StringValueCStr(frame.caller->tp.entity), \
-    StringValueCStr(frame.caller->tp.method_name), \
-    frame.caller->tp.method_level
+#define RS_FLATTENED_CSV_VALUES(frame)               \
+  _RS_SHARED_CSV_VALUES(frame.tp)                    \
+  , StringValueCStr(frame.caller->tp.entity),        \
+      StringValueCStr(frame.caller->tp.method_name), \
+      frame.caller->tp.method_level
 
 typedef enum {
   RS_CLOSED = 0,
@@ -39,8 +40,7 @@ typedef enum {
   RS_TRACING,
 } rs_state;
 
-typedef struct
-{
+typedef struct {
   FILE *log;
   VALUE log_path;
   VALUE tracepoint;
@@ -52,8 +52,7 @@ typedef struct
   rs_stack_t stack;
 } Rotoscope;
 
-typedef struct
-{
+typedef struct {
   VALUE name;
   const char *method_level;
 } rs_class_desc_t;

@@ -2,8 +2,11 @@
 name: rotoscope
 up:
   - ruby: 2.3.3
+  - homebrew:
+    - clang-format
   - bundler
 
 commands:
   build: bundle exec rake build
   test: bundle exec rake test
+  fmt: bin/fmt
