@@ -95,6 +95,7 @@ IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
   - [`close`](#rotoscopeclose)
   - [`state`](#rotoscopestate)
   - [`closed?`](#rotoscopeclosed)
+  - [`log_path`](#rotoscopelog_path)
 
 ---
 
@@ -202,4 +203,15 @@ rs = Rotoscope.new(dest)
 rs.closed? # false
 rs.close
 rs.closed? # true
+```
+
+
+#### `Rotoscope#log_path`
+
+Returns the output filepath set in the Rotoscope constructor.
+
+```ruby
+dest = '/foo/bar/rotoscope.csv'
+rs = Rotoscope.new(dest)
+rs.log_path # "/foo/bar/rotoscope.csv"
 ```
