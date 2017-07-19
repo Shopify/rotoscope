@@ -3,6 +3,7 @@
 
 #include <unistd.h>
 #include "stack.h"
+#include "strmemo.h"
 
 #define EVENT_CALL (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
@@ -52,6 +53,7 @@ typedef struct {
   pid_t pid;
   rs_state state;
   rs_stack_t stack;
+  rs_strmemo_t *call_memo;
 } Rotoscope;
 
 typedef struct {
