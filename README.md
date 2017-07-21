@@ -56,7 +56,7 @@ return,"Noisemaker","speak",class,"example/dog.rb",12
 return,"Dog","bark",instance,"example/dog.rb",6
 ```
 
-If you're interested solely in the flattened caller/callee list, you can pass the `flatten` option to retrieve that instead.
+If you're interested solely in the flattened caller/callee list, you can pass the `flatten` option to retrieve that instead. This step will also remove all duplicate lines, which can produce significantly smaller output on large codebases.
 
 ```ruby
 # ... same code as above
@@ -77,7 +77,6 @@ Dog,bark,instance,example/flattened_dog.rb,20,<ROOT>,<UNKNOWN>,<UNKNOWN>
 Noisemaker,speak,class,example/flattened_dog.rb,5,Dog,bark,instance
 Noisemaker,puts,class,example/flattened_dog.rb,11,Noisemaker,speak,class
 IO,puts,instance,example/flattened_dog.rb,11,Noisemaker,puts,class
-IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
 IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
 ```
 
@@ -103,7 +102,7 @@ IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
 
 #### `Rotoscope::trace(dest, blacklist: [], flatten: false)`
 
-Writes all calls and returns of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. The `flatten` option reduces the output data to a list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`.
+Writes all calls and returns of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. The `flatten` option reduces the output data to a deduplicated list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`.
 
 ```ruby
 Rotoscope.trace(dest) { |rs| ... }

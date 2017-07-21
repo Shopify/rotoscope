@@ -1,7 +1,7 @@
 # frozen_string_literal: true
 Gem::Specification.new do |s|
   s.name        = 'rotoscope'
-  s.version     = '0.2.0'
+  s.version     = '0.2.1'
   s.date        = '2017-06-19'
 
   s.authors     = ["Jahfer Husain"]

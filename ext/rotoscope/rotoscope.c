@@ -10,6 +10,7 @@
 #include "callsite.h"
 #include "rotoscope.h"
 #include "stack.h"
+#include "strmemo.h"
 #include "tracepoint.h"
 
 VALUE cRotoscope, cTracePoint;
@@ -153,12 +154,18 @@ static void log_raw_trace(FILE *stream, rs_tracepoint_t trace) {
   fprintf(stream, RS_CSV_FORMAT "\n", RS_CSV_VALUES(trace));
 }
 
+unsigned char output_buffer[500];
 static void log_stack_frame(FILE *stream, rs_stack_t *stack,
-                            rs_tracepoint_t trace, rb_event_flag_t event) {
+                            rs_strmemo_t **call_memo, rs_tracepoint_t trace,
+                            rb_event_flag_t event) {
   if (event & EVENT_CALL) {
     rs_stack_frame_t frame = rs_stack_push(stack, trace);
-    fprintf(stream, RS_FLATTENED_CSV_FORMAT "\n",
+    sprintf((char *)output_buffer, RS_FLATTENED_CSV_FORMAT "\n",
             RS_FLATTENED_CSV_VALUES(frame));
+
+    if (rs_strmemo_uniq(call_memo, output_buffer)) {
+      fputs((char *)output_buffer, stream);
+    }
   } else if (event & EVENT_RETURN) {
     if (tracecmp(&trace, &rs_stack_peek(stack)->tp)) rs_stack_pop(stack);
   }
@@ -183,7 +190,8 @@ static void event_hook(VALUE tpval, void *data) {
 
   if (config->flatten_output) {
     rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
-    log_stack_frame(config->log, &config->stack, trace, event_flag);
+    log_stack_frame(config->log, &config->stack, &config->call_memo, trace,
+                    event_flag);
   } else {
     log_raw_trace(config->log, trace);
   }
@@ -220,6 +228,7 @@ static void rs_gc_mark(Rotoscope *config) {
 void rs_dealloc(Rotoscope *config) {
   close_log_handle(config);
   rs_stack_free(&config->stack);
+  rs_strmemo_free(config->call_memo);
   xfree(config->blacklist);
   xfree(config);
 }
@@ -295,6 +304,7 @@ VALUE initialize(int argc, VALUE *argv, VALUE self) {
     write_csv_header(config->log, RS_CSV_HEADER);
 
   rs_stack_init(&config->stack, STACK_CAPACITY);
+  config->call_memo = NULL;
   config->state = RS_OPEN;
   return self;
 }
@@ -325,6 +335,7 @@ VALUE rotoscope_mark(VALUE self) {
   Rotoscope *config = get_config(self);
   if (config->log != NULL && !in_fork(config)) {
     rs_stack_reset(&config->stack, STACK_CAPACITY);
+    rs_strmemo_free(config->call_memo);
     fprintf(config->log, "---\n");
   }
   return Qnil;
