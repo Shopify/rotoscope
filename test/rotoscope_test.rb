@@ -254,7 +254,7 @@ class RotoscopeTest < MiniTest::Test
 
   def test_trace_uses_io_objects
     string_io = StringIO.new
-    Rotoscope.trace(string_io) do |rs|
+    Rotoscope.trace(string_io) do
       Example.new.normal_method
     end
     refute_predicate string_io, :closed?
@@ -279,9 +279,10 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_gc_rotoscope_without_stop_trace_does_not_crash
-    rs = Rotoscope.new(@logfile)
-    rs.start_trace
-    rs = nil
+    proc {
+      rs = Rotoscope.new(@logfile)
+      rs.start_trace
+    }.call
     GC.start
   end
 
@@ -291,7 +292,7 @@ class RotoscopeTest < MiniTest::Test
       rs.start_trace
     end
     Process.waitpid(child_pid)
-    assert_equal true, $?.success?
+    assert_equal true, $CHILD_STATUS.success?
   end
 
   def test_log_path

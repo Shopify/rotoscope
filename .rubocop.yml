@@ -4,7 +4,12 @@ inherit_from:
 AllCops:
   Exclude:
     - 'tmp/**/*'
+  TargetRubyVersion: 2.2
 
 Metrics/LineLength:
   Exclude:
     - 'test/**/*'
+
+Style/GlobalVars:
+  Exclude:
+    - 'ext/rotoscope/extconf.rb'

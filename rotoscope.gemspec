@@ -19,5 +19,5 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'rake-compiler', '~> 0.9'
   s.add_development_dependency 'mocha', '~> 0.14'
   s.add_development_dependency 'minitest', '~> 5.0'
-  s.add_development_dependency 'rubocop'
+  s.add_development_dependency 'rubocop', '~> 0.49'
 end
