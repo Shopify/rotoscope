@@ -10,7 +10,13 @@ require 'csv'
 require 'fixture_inner'
 require 'fixture_outer'
 
+module PrependedModule
+  def prepended_method; end
+end
+
 class Example
+  prepend PrependedModule
+
   class << self
     def singleton_method
       true
