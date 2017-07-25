@@ -60,20 +60,7 @@ static VALUE singleton2str(VALUE klass) {
     return name;
   } else  // singleton of an instance
   {
-    VALUE real_klass;
-    VALUE ancestors = rb_mod_ancestors(klass);
-    if (RARRAY_LEN(ancestors) > 0 &&
-        !NIL_P(real_klass = rb_ary_entry(ancestors, 1))) {
-      VALUE cached_lookup = rb_class_path_cached(real_klass);
-      if (RTEST(cached_lookup)) {
-        return cached_lookup;
-      } else {
-        return rb_class_name(real_klass);
-      }
-    }
-    // fallback in case we can't come up with a name
-    // based on the ancestors
-    return rb_any_to_s(klass);
+    return singleton2str(CLASS_OF(klass));
   }
 }
 
