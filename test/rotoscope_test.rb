@@ -10,11 +10,17 @@ require 'csv'
 require 'fixture_inner'
 require 'fixture_outer'
 
+module MyModule
+  def module_method; end
+end
+
 module PrependedModule
   def prepended_method; end
 end
 
 class Example
+  include MyModule
+  extend MyModule
   prepend PrependedModule
 
   class << self
@@ -31,6 +37,10 @@ class Example
     oops
   rescue
     nil
+  end
+
+  def yielding_method
+    yield
   end
 
   private
@@ -150,6 +160,26 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
+  def test_traces_yielding_method
+    contents = rotoscope_trace do
+      e = Example.new
+      e.yielding_method { e.normal_method }
+    end
+
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "yielding_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "yielding_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 }
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
   def test_calls_are_consistent_after_exception
     contents = rotoscope_trace { Example.new.exception_method }
     assert_frames_consistent contents
@@ -176,6 +206,44 @@ class RotoscopeTest < MiniTest::Test
       { event: "return", entity: "Example", method_name: "singleton_class", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "call", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
+  def test_traces_included_module_method
+    contents = rotoscope_trace { Example.new.module_method }
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "module_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "module_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 }
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
+  def test_traces_extended_module_method
+    contents = rotoscope_trace { Example.module_method }
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "module_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "module_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 }
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
+  def test_traces_prepended_module_method
+    contents = rotoscope_trace { Example.new.prepended_method }
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "prepended_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "prepended_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 }
     ], parse_and_normalize(contents)
 
     assert_frames_consistent contents
