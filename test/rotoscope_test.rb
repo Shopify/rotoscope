@@ -9,6 +9,7 @@ require 'csv'
 
 require 'fixture_inner'
 require 'fixture_outer'
+require 'monadify'
 
 module MyModule
   def module_method; end
@@ -19,13 +20,18 @@ module PrependedModule
 end
 
 class Example
+  prepend PrependedModule
   include MyModule
   extend MyModule
-  prepend PrependedModule
+  extend Monadify
 
   class << self
     def singleton_method
       true
+    end
+
+    def apply(val)
+      monad val
     end
   end
 
@@ -53,6 +59,7 @@ end
 ROOT_FIXTURE_PATH = File.expand_path('../', __FILE__)
 INNER_FIXTURE_PATH = File.expand_path('../fixture_inner.rb', __FILE__)
 OUTER_FIXTURE_PATH = File.expand_path('../fixture_outer.rb', __FILE__)
+MONADIFY_PATH = File.expand_path('monadify.rb', ROOT_FIXTURE_PATH)
 
 class RotoscopeTest < MiniTest::Test
   def setup
@@ -400,6 +407,33 @@ class RotoscopeTest < MiniTest::Test
       { event: "return", entity: "Object", method_name: "inherited", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "#<Class:0xXXXXXX>", method_name: "initialize", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "Class", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 }
+    ], parse_and_normalize(contents)
+  end
+
+  def test_dynamic_methods_in_blacklist
+    skip <<-FAILING_TEST_CASE
+      Return events for dynamically created methods (define_method, define_singleton_method)
+      do not have the correct stack frame information (the call of a dynamically defined method
+      is correctly treated as a Ruby :call, but its return must be treated as a :c_return)
+    FAILING_TEST_CASE
+
+    contents = rotoscope_trace(blacklist: [MONADIFY_PATH]) { Example.apply("my value!") }
+
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_flatten_with_dynamic_methods_in_blacklist
+    # the failing test above passes when using `flatten: true` since unmatched stack returns are ignored
+    contents = rotoscope_trace(blacklist: [MONADIFY_PATH], flatten: true) { Example.apply("my value!") }
+
+    assert_equal [
+      { entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
+      { entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "apply", caller_method_level: "class" },
     ], parse_and_normalize(contents)
   end
 
