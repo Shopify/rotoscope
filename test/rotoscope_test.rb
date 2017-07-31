@@ -390,6 +390,19 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_dynamic_class_creation
+    contents = rotoscope_trace { Class.new }
+
+    assert_equal [
+      { event: "call", entity: "Class", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "#<Class:0xXXXXXX>", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Object", method_name: "inherited", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Object", method_name: "inherited", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "#<Class:0xXXXXXX>", method_name: "initialize", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Class", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 }
+    ], parse_and_normalize(contents)
+  end
+
   private
 
   def parse_and_normalize(csv_string)
@@ -397,6 +410,7 @@ class RotoscopeTest < MiniTest::Test
       row = row.to_h
       row[:lineno] = -1
       row[:filepath] = row[:filepath].gsub(ROOT_FIXTURE_PATH, '')
+      row[:entity] = row[:entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
       row
     end
   end

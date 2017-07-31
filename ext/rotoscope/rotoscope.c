@@ -103,9 +103,12 @@ static rs_class_desc_t tracearg_class(rb_trace_arg_t *trace_arg) {
   VALUE klass;
   VALUE self = rb_tracearg_self(trace_arg);
 
-  if (RB_TYPE_P(self, T_MODULE) || RB_TYPE_P(self, T_OBJECT) ||
-      RB_TYPE_P(self, T_CLASS)) {
-    klass = RBASIC_CLASS(self);
+  if (RB_TYPE_P(self, T_MODULE) || RB_TYPE_P(self, T_OBJECT)) {
+    klass = CLASS_OF(self);
+  } else if (RB_TYPE_P(self, T_CLASS)) {
+    // Does the object have an attached singleton?
+    // If not, name based on self instead of its singleton
+    klass = (FL_TEST(CLASS_OF(self), FL_SINGLETON)) ? CLASS_OF(self) : self;
   } else {
     klass = rb_tracearg_defined_class(trace_arg);
   }
