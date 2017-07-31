@@ -18,6 +18,10 @@ VALUE cRotoscope, cTracePoint;
 // recursive with singleton2str
 static rs_class_desc_t class2str(VALUE klass);
 
+static unsigned long gettid() {
+  return NUM2ULONG(rb_obj_id(rb_thread_current()));
+}
+
 static int write_csv_header(FILE *log, const char *header) {
   return fprintf(log, "%s\n", header);
 }
@@ -161,6 +165,7 @@ static void log_stack_frame(FILE *stream, rs_stack_t *stack,
 static void event_hook(VALUE tpval, void *data) {
   Rotoscope *config = (Rotoscope *)data;
 
+  if (config->tid != gettid()) return;
   if (in_fork(config)) {
     rb_tracepoint_disable(config->tracepoint);
     config->state = RS_OPEN;
@@ -228,6 +233,7 @@ static VALUE rs_alloc(VALUE klass) {
   config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
                                          event_hook, (void *)config);
   config->pid = getpid();
+  config->tid = gettid();
   return self;
 }
 

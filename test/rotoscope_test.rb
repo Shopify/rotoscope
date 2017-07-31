@@ -375,6 +375,21 @@ class RotoscopeTest < MiniTest::Test
     assert_equal File.expand_path('tmp/test.csv.gz'), rs.log_path
   end
 
+  def test_ignores_calls_inside_of_threads
+    thread = nil
+    contents = rotoscope_trace do
+      thread = Thread.new { Example.new }
+    end
+    thread.join
+
+    assert_equal [
+      { event: "call", entity: "Thread", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Thread", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Thread", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Thread", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
   private
 
   def parse_and_normalize(csv_string)

@@ -51,6 +51,7 @@ typedef struct {
   unsigned long blacklist_size;
   bool flatten_output;
   pid_t pid;
+  unsigned long tid;
   rs_state state;
   rs_stack_t stack;
   rs_strmemo_t *call_memo;
