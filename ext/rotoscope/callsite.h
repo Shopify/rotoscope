@@ -1,6 +1,9 @@
 #ifndef _INC_CALLSITE_H_
 #define _INC_CALLSITE_H_
 
+#include <ruby.h>
+#include <ruby/debug.h>
+
 typedef struct {
   VALUE filepath;
   unsigned int lineno;

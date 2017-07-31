@@ -1,7 +1,6 @@
-#include "ruby.h"
-#include "ruby/debug.h"
-
 #include "callsite.h"
+#include <ruby.h>
+#include <ruby/debug.h>
 
 VALUE empty_ruby_string;
 
