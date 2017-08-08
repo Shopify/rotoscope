@@ -327,12 +327,18 @@ VALUE rotoscope_log_path(VALUE self) {
   return config->log_path;
 }
 
-VALUE rotoscope_mark(VALUE self) {
+VALUE rotoscope_mark(int argc, VALUE *argv, VALUE self) {
+  VALUE str;
+  rb_scan_args(argc, argv, "01", &str);
+
+  if (NIL_P(str)) str = rb_str_new2("");
+  Check_Type(str, T_STRING);
+
   Rotoscope *config = get_config(self);
   if (config->log != NULL && !in_fork(config)) {
     rs_stack_reset(&config->stack, STACK_CAPACITY);
     rs_strmemo_free(config->call_memo);
-    fprintf(config->log, "---\n");
+    fprintf(config->log, "--- %s\n", StringValueCStr(str));
   }
   return Qnil;
 }
@@ -371,7 +377,7 @@ void Init_rotoscope(void) {
   rb_define_alloc_func(cRotoscope, rs_alloc);
   rb_define_method(cRotoscope, "initialize", initialize, -1);
   rb_define_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
-  rb_define_method(cRotoscope, "mark", (VALUE(*)(ANYARGS))rotoscope_mark, 0);
+  rb_define_method(cRotoscope, "mark", (VALUE(*)(ANYARGS))rotoscope_mark, -1);
   rb_define_method(cRotoscope, "close", (VALUE(*)(ANYARGS))rotoscope_close, 0);
   rb_define_method(cRotoscope, "start_trace",
                    (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
