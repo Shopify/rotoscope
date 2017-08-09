@@ -104,7 +104,21 @@ class RotoscopeTest < MiniTest::Test
       rs.mark
     end
 
-    assert_includes contents.split("\n"), '---'
+    assert_includes contents.split("\n"), '--- '
+  end
+
+  def test_mark_with_custom_strings
+    mark_strings = ["Hello", "ÅÉÎØÜ åéîøü"]
+    contents = rotoscope_trace do |rs|
+      e = Example.new
+      e.normal_method
+      mark_strings.each { |str| rs.mark(str) }
+    end
+
+    content_lines = contents.split("\n")
+    mark_strings.each do |str|
+      assert_includes content_lines, "--- #{str}"
+    end
   end
 
   def test_flatten

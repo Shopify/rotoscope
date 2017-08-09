@@ -89,8 +89,7 @@ IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
   - [`trace`](#rotoscopetraceblock)
   - [`start_trace`](#rotoscopestart_trace)
   - [`stop_trace`](#rotoscopestop_trace)
-  - [`flatten`](#rotoscopeflattendest)
-  - [`mark`](#rotoscopemark)
+  - [`mark`](#rotoscopemarkstr--)
   - [`close`](#rotoscopeclose)
   - [`state`](#rotoscopestate)
   - [`closed?`](#rotoscopeclosed)
@@ -156,15 +155,15 @@ rs.start_trace
 rs.stop_trace
 ```
 
-#### `Rotoscope#mark`
+#### `Rotoscope#mark(str = "")`
 
- Inserts a marker '---' to divide output. Useful for segmenting multiple blocks of code that are being profiled.
+ Inserts a marker '--- ' to divide output. Useful for segmenting multiple blocks of code that are being profiled. If `str` is provided, the line will be prefixed by '--- ', followed by the string passed.
 
 ```ruby
 rs = Rotoscope.new(dest)
 rs.start_trace
 # code to trace...
-rs.mark
+rs.mark('Something goes wrong here') # produces `--- Something goes wrong here` in the output
 # more code ...
 rs.stop_trace
 ```
