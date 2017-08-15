@@ -10,7 +10,7 @@ Gem::Specification.new do |s|
   s.license     = 'MIT'
 
   s.summary     = "Tracing Ruby"
-  s.description = "Rotoscope performs introspection of method calls in Ruby programs."
+  s.description = "High-performance logger of Ruby method invocations"
 
   s.files       = `git ls-files`.split("\n")
   s.required_ruby_version = ">= 2.2.0"
