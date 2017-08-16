@@ -1,6 +1,6 @@
 # Rotoscope
 
-Rotoscope performs introspection of method calls in Ruby programs.
+Rotoscope is a high-performance logger of Ruby method invocations.
 
 ## Status
 
