@@ -2,9 +2,11 @@
 
 Rotoscope performs introspection of method calls in Ruby programs.
 
-## Status &nbsp; [![status](https://circleci.com/gh/Shopify/rotoscope/tree/master.svg?style=shield&circle-token=cddbd315df7a81ab944adf4dfc14a5800cd589fc)](https://circleci.com/gh/Shopify/rotoscope/tree/master)
+## Status
 
-Alpha!
+[![status](https://circleci.com/gh/Shopify/rotoscope/tree/master.svg?style=shield&circle-token=cddbd315df7a81ab944adf4dfc14a5800cd589fc)](https://circleci.com/gh/Shopify/rotoscope/tree/master) [![Gem Version](https://badge.fury.io/rb/rotoscope.svg)](https://badge.fury.io/rb/rotoscope)
+
+Rotoscope is subject to breaking changes in minor versions until `1.0` is available.
 
 ## Example
 
