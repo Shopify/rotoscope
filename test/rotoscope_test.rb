@@ -288,6 +288,19 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
+  def test_trace_saves_called_context_if_not_called_from_whitelisted_path
+    dependency = FixtureInner.new
+    contents = rotoscope_trace(flatten: true, entity_whitelist: ['FixtureInner']) do
+      dependency.calls_sum
+    end
+
+    assert_equal [
+      { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "calls_sum", caller_method_level: "instance" },
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
   def test_trace_ignores_writes_in_fork
     contents = rotoscope_trace do |rotoscope|
       fork do
