@@ -288,6 +288,22 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
+  def test_trace_saves_called_context_if_called_from_blacklisted_path
+    dependency = FixtureInner.new
+    contents = rotoscope_trace(blacklist: ['/rotoscope_test.rb']) do
+      dependency.calls_sum
+    end
+
+    assert_equal [
+      {:event=>"call", :entity=>"FixtureInner", :method_name=>"calls_sum", :method_level=>"instance", :filepath=>"/rotoscope_test.rb", :lineno=>-1},
+      {:event=>"call", :entity=>"FixtureInner", :method_name=>"sum", :method_level=>"instance", :filepath=>"/fixture_inner.rb", :lineno=>-1},
+      {:event=>"return", :entity=>"FixtureInner", :method_name=>"sum", :method_level=>"instance", :filepath=>"/fixture_inner.rb", :lineno=>-1},
+      {:event=>"return", :entity=>"FixtureInner", :method_name=>"calls_sum", :method_level=>"instance", :filepath=>"/rotoscope_test.rb", :lineno=>-1}
+    ], parse_and_normalize(contents)
+
+    assert_frames_consistent contents
+  end
+
   def test_trace_ignores_writes_in_fork
     contents = rotoscope_trace do |rotoscope|
       fork do
