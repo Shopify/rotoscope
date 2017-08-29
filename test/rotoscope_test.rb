@@ -479,4 +479,4 @@ end
 
 # https://github.com/seattlerb/minitest/pull/683 needed to use
 # autorun without affecting the exit status of forked processes
-Minitest.run(ARGV)
+exit Minitest.run(ARGV)
