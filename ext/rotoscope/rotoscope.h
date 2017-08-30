@@ -7,11 +7,16 @@
 
 #define EVENT_CALL (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
 #define EVENT_RETURN (RUBY_EVENT_RETURN | RUBY_EVENT_C_RETURN)
+#define METHOD_CALL_P(event) event &EVENT_CALL
+#define METHOD_RETURN_P(event) event &EVENT_RETURN
 
 #define CLASS_METHOD "class"
 #define INSTANCE_METHOD "instance"
 
+#define VM_BLOCK_PREFIX "block "
+
 #define STACK_CAPACITY 500
+#define LOG_BUFFER_SIZE 1000
 
 // clang-format off
 #define _RS_COMMON_CSV_HEADER "entity,method_name,method_level,filepath,lineno"
