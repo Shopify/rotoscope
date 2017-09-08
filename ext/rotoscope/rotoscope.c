@@ -61,8 +61,7 @@ static bool is_class_singleton(VALUE klass) {
 static VALUE singleton2str(VALUE klass) {
   if (is_class_singleton(klass)) {
     return class2str(class_of_singleton(klass));
-  } else  // singleton of an instance
-  {
+  } else {
     return singleton2str(CLASS_OF(klass));
   }
 }
@@ -123,7 +122,6 @@ static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg,
 
   VALUE method_name = tracearg_method_name(trace_arg);
   VALUE filepath = callsite->filepath;
-
   return (rs_tracepoint_t){.event = evflag2name(event_flag),
                            .entity = method_owner.name,
                            .filepath = filepath,
@@ -135,22 +133,40 @@ static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg,
 
 static bool in_fork(Rotoscope *config) { return config->pid != getpid(); }
 
-static bool tracecmp(rs_tracepoint_t *a, rs_tracepoint_t *b) {
-  return (!rb_str_cmp(a->method_name, b->method_name) &&
-          !rb_str_cmp(a->entity, b->entity) &&
-          a->method_level == b->method_level);
+static bool tracecmp(rs_tracepoint_t *new_call, rs_tracepoint_t *old_call) {
+  if (!rb_str_cmp(new_call->method_name, old_call->method_name) &&
+      !rb_str_cmp(new_call->entity, old_call->entity) &&
+      new_call->method_level == old_call->method_level) {
+    return true;
+  }
+
+  // Some module methods have their call events resolve to `Module`, while their
+  // return events resolve to the proper class invoked. This loosens the
+  // comparison test to make sure we pop the stack correctly in these cases.
+  if (!rb_str_cmp(new_call->method_name, old_call->method_name)) {
+    char *method_name_str = StringValueCStr(old_call->method_name);
+    if (!strcmp(StringValueCStr(old_call->entity), "Module")) {
+      if (!strcmp(method_name_str, "extend") ||
+          !strcmp(method_name_str, "extend_object") ||
+          !strcmp(method_name_str, "initialize")) {
+        return true;
+      }
+    }
+  }
+  return false;
 }
 
 static bool endof_block_method(rb_trace_arg_t *trace_arg) {
   VALUE method_id = rb_tracearg_method_id(trace_arg);
-  if (NIL_P(method_id)) return false;
-
-  VALUE method_str = rb_sym2str(method_id);
-  if (strncmp(StringValueCStr(method_str), "__temp__", 8) == 0) {
+  if (NIL_P(method_id)) {
     return false;
   }
 
-  VALUE method = rb_obj_method(rb_tracearg_self(trace_arg), method_id);
+  VALUE self = rb_tracearg_self(trace_arg);
+  VALUE method = rb_obj_method(self, method_id);
+
+  if (!rb_respond_to(self, method)) return false;
+
   VALUE iseq = rb_funcall(cInstructionSeq, id_of, 1, method);
   if (!RTEST(iseq)) return false;
 
@@ -176,18 +192,18 @@ static void log_trace_event(char *buffer, Rotoscope *config,
 
 static void log_rotoscope_trace(Rotoscope *config, rs_tracepoint_t trace) {
   rs_stack_frame_t frame;
-  bool matches_previous_call = false;
+  bool return_matches_stack = false;
   rb_event_flag_t event = rb_tracearg_event_flag(trace.raw);
 
-  *log_buffer = '\0'; /* reset log buffer for reuse */
+  *log_buffer = '\0';
 
   if (METHOD_CALL_P(event)) {
     frame = rs_stack_push(&config->stack, trace);
   } else if (METHOD_RETURN_P(event)) {
     rs_stack_frame_t *last_frame = rs_stack_peek(&config->stack);
-    matches_previous_call = tracecmp(&trace, &last_frame->tp);
+    return_matches_stack = tracecmp(&trace, &last_frame->tp);
     if (endof_block_method(trace.raw)) {
-      if (!matches_previous_call) return;
+      if (!return_matches_stack) return;
       trace.filepath = last_frame->tp.filepath;
       trace.lineno = last_frame->tp.lineno;
     }
@@ -205,7 +221,7 @@ static void log_rotoscope_trace(Rotoscope *config, rs_tracepoint_t trace) {
     fprintf(config->log, "%s\n", log_buffer);
   }
 
-  if (METHOD_RETURN_P(event) && matches_previous_call) {
+  if (METHOD_RETURN_P(event) && return_matches_stack) {
     rs_stack_pop(&config->stack);
   }
 }
@@ -225,6 +241,9 @@ static void event_hook(VALUE tpval, void *data) {
 
   if (rejected_path(trace_path.filepath, config)) {
     if (METHOD_CALL_P(rb_tracearg_event_flag(trace_arg))) return;
+    // We must ensure the event being blacklisted has correct filepath set,
+    // since block-method returns always point one level too high in the stack.
+
     // Are we dealing with a block return in wrong context?
     if (!endof_block_method(trace_arg)) return;
     // Does this match the last caller?

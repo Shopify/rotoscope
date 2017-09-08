@@ -459,6 +459,15 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_flatten_with_invoking_block_defined_methods
+    contents = rotoscope_trace(blacklist: [MONADIFY_PATH], flatten: false) { Example.contents }
+
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
   def test_module_extend
     contents = rotoscope_trace { Module.new { extend(MyModule) } }
 
