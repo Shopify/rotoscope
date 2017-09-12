@@ -11,7 +11,7 @@ typedef struct rs_tracepoint_t {
   VALUE method_name;
   const char *method_level;
   unsigned int lineno;
-  rb_trace_arg_t *raw;
+  VALUE raw;
 } rs_tracepoint_t;
 
 void rs_tracepoint_mark(rs_tracepoint_t *tracepoint);

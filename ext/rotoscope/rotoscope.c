@@ -15,7 +15,6 @@
 
 VALUE cRotoscope, cTracePoint, cInstructionSeq;
 ID id_initialize, id_of, id_label;
-unsigned char log_buffer[LOG_BUFFER_SIZE];
 
 // recursive with singleton2str
 static VALUE class2str(VALUE klass);
@@ -127,11 +126,19 @@ static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg,
                            .filepath = filepath,
                            .method_name = method_name,
                            .method_level = method_owner.method_level,
-                           .lineno = callsite->lineno,
-                           .raw = trace_arg};
+                           .lineno = callsite->lineno};
 }
 
 static bool in_fork(Rotoscope *config) { return config->pid != getpid(); }
+
+// Knowingly produces false positives, but not false negatives
+static bool tracepoint_entities_match(VALUE tpval1, VALUE tpval2) {
+  rb_trace_arg_t *t1 = rb_tracearg_from_tracepoint(tpval1);
+  rb_trace_arg_t *t2 = rb_tracearg_from_tracepoint(tpval2);
+  if (rb_tracearg_method_id(t1) == rb_tracearg_method_id(t2)) return true;
+  if (rb_tracearg_self(t1) == rb_tracearg_self(t2)) return true;
+  return false;
+}
 
 static bool tracecmp(rs_tracepoint_t *new_call, rs_tracepoint_t *old_call) {
   if (!rb_str_cmp(new_call->method_name, old_call->method_name) &&
@@ -156,16 +163,21 @@ static bool tracecmp(rs_tracepoint_t *new_call, rs_tracepoint_t *old_call) {
   return false;
 }
 
+static VALUE unsafe_obj_method(VALUE argv) {
+  VALUE *args = (VALUE *)argv;
+  return rb_obj_method(args[0], args[1]);
+}
+static VALUE nil_method(VALUE *args) { return Qnil; }
+
 static bool endof_block_method(rb_trace_arg_t *trace_arg) {
   VALUE method_id = rb_tracearg_method_id(trace_arg);
-  if (NIL_P(method_id)) {
-    return false;
-  }
+  if (NIL_P(method_id)) return false;
 
   VALUE self = rb_tracearg_self(trace_arg);
-  VALUE method = rb_obj_method(self, method_id);
-
-  if (!rb_respond_to(self, method)) return false;
+  VALUE argv[2] = {self, method_id};
+  VALUE method = rb_rescue2(unsafe_obj_method, (VALUE)&argv, nil_method,
+                            (VALUE)&argv, rb_eNameError, (VALUE)0);
+  if (NIL_P(method)) return false;
 
   VALUE iseq = rb_funcall(cInstructionSeq, id_of, 1, method);
   if (!RTEST(iseq)) return false;
@@ -175,60 +187,42 @@ static bool endof_block_method(rb_trace_arg_t *trace_arg) {
   return strncmp(VM_BLOCK_PREFIX, label_str, strlen(VM_BLOCK_PREFIX)) == 0;
 }
 
-static void log_trace_event_with_caller(char *buffer, Rotoscope *config,
-                                        rs_stack_frame_t frame,
-                                        rb_event_flag_t event) {
-  snprintf(buffer, LOG_BUFFER_SIZE, RS_FLATTENED_CSV_FORMAT,
+unsigned char output_buffer[LOG_BUFFER_SIZE];
+static void log_trace_event_with_caller(FILE *stream, rs_strmemo_t **call_memo,
+                                        rs_stack_frame_t frame) {
+  snprintf((char *)output_buffer, LOG_BUFFER_SIZE, RS_FLATTENED_CSV_FORMAT "\n",
            RS_FLATTENED_CSV_VALUES(frame));
-  if (!rs_strmemo_uniq(&config->call_memo, (unsigned char *)buffer)) {
-    *buffer = '\0';
+  if (rs_strmemo_uniq(call_memo, (unsigned char *)output_buffer)) {
+    fputs((char *)output_buffer, stream);
   }
 }
 
-static void log_trace_event(char *buffer, Rotoscope *config,
-                            rs_tracepoint_t trace, rb_event_flag_t event) {
-  snprintf(buffer, LOG_BUFFER_SIZE, RS_CSV_FORMAT, RS_CSV_VALUES(trace));
+static void log_trace_event(FILE *stream, rs_tracepoint_t trace) {
+  fprintf(stream, RS_CSV_FORMAT "\n", RS_CSV_VALUES(trace));
 }
 
-static void log_rotoscope_trace(Rotoscope *config, rs_tracepoint_t trace) {
-  rs_stack_frame_t frame;
-  bool return_matches_stack = false;
-  rb_event_flag_t event = rb_tracearg_event_flag(trace.raw);
-
-  *log_buffer = '\0';
-
-  if (METHOD_CALL_P(event)) {
-    frame = rs_stack_push(&config->stack, trace);
-  } else if (METHOD_RETURN_P(event)) {
-    rs_stack_frame_t *last_frame = rs_stack_peek(&config->stack);
-    return_matches_stack = tracecmp(&trace, &last_frame->tp);
-    if (endof_block_method(trace.raw)) {
-      if (!return_matches_stack) return;
-      trace.filepath = last_frame->tp.filepath;
-      trace.lineno = last_frame->tp.lineno;
-    }
+static bool stack_rejection(rs_stack_t *stack, rs_tracepoint_t *trace,
+                            rb_event_flag_t event) {
+  if (METHOD_RETURN_P(event)) {
+    rs_stack_frame_t *last_frame = rs_stack_peek(stack);
+    if (!tracecmp(trace, &last_frame->tp)) return true;
   }
 
-  if (config->flatten_output) {
-    if (METHOD_CALL_P(event)) {
-      log_trace_event_with_caller((char *)log_buffer, config, frame, event);
-    }
-  } else {
-    log_trace_event((char *)log_buffer, config, trace, event);
-  }
+  return false;
+}
 
-  if (strlen((char *)log_buffer) != 0) {
-    fprintf(config->log, "%s\n", log_buffer);
-  }
+static void repair_trace_filepath(rs_stack_t *stack, rs_tracepoint_t *trace) {
+  rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(trace->raw);
 
-  if (METHOD_RETURN_P(event) && return_matches_stack) {
-    rs_stack_pop(&config->stack);
+  rs_stack_frame_t *last_frame = rs_stack_peek(stack);
+  if (endof_block_method(trace_arg)) {
+    trace->filepath = last_frame->tp.filepath;
+    trace->lineno = last_frame->tp.lineno;
   }
 }
 
 static void event_hook(VALUE tpval, void *data) {
   Rotoscope *config = (Rotoscope *)data;
-
   if (config->tid != gettid()) return;
   if (in_fork(config)) {
     rb_tracepoint_disable(config->tracepoint);
@@ -237,25 +231,40 @@ static void event_hook(VALUE tpval, void *data) {
   }
 
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
+  rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
   rs_callsite_t trace_path = tracearg_path(trace_arg);
 
   if (rejected_path(trace_path.filepath, config)) {
-    if (METHOD_CALL_P(rb_tracearg_event_flag(trace_arg))) return;
+    if (METHOD_CALL_P(event_flag)) return;
     // We must ensure the event being blacklisted has correct filepath set,
     // since block-method returns always point one level too high in the stack.
 
-    // Are we dealing with a block return in wrong context?
-    if (!endof_block_method(trace_arg)) return;
     // Does this match the last caller?
     rs_stack_frame_t *last_frame = rs_stack_peek(&config->stack);
-    rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
-    if (!tracecmp(&trace, &last_frame->tp)) return;
+    if (!tracepoint_entities_match(tpval, last_frame->tp.raw)) return;
+    // Are we dealing with a block return in wrong context?
+    if (!endof_block_method(trace_arg)) return;
   }
 
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
-  if (!strcmp("Rotoscope", StringValueCStr(trace.entity))) return;
+  trace.raw = tpval;
 
-  log_rotoscope_trace(config, trace);
+  if (!strcmp("Rotoscope", StringValueCStr(trace.entity))) return;
+  if (stack_rejection(&config->stack, &trace, event_flag)) return;
+
+  rs_stack_frame_t frame;
+  if (METHOD_CALL_P(event_flag)) {
+    frame = rs_stack_push(&config->stack, trace);
+  } else {
+    repair_trace_filepath(&config->stack, &trace);
+    rs_stack_pop(&config->stack);
+  }
+
+  if (!config->flatten_output) {
+    return log_trace_event(config->log, trace);
+  } else if (METHOD_CALL_P(event_flag)) {
+    log_trace_event_with_caller(config->log, &config->call_memo, frame);
+  }
 }
 
 static void close_log_handle(Rotoscope *config) {
