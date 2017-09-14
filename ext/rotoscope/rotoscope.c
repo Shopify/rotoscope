@@ -66,16 +66,19 @@ static VALUE singleton2str(VALUE klass) {
   }
 }
 
-static VALUE class2str(VALUE klass) {
-  VALUE cached_lookup = rb_class_path_cached(klass);
-
-  if (!NIL_P(cached_lookup)) {
-    return cached_lookup;
+static VALUE class_path(VALUE klass) {
+  VALUE cached_path = rb_class_path_cached(klass);
+  if (!NIL_P(cached_path)) {
+    return cached_path;
   }
+  return rb_class_path(klass);
+}
+
+static VALUE class2str(VALUE klass) {
   if (FL_TEST(klass, FL_SINGLETON)) {
     return singleton2str(klass);
   } else {
-    return rb_class_path(klass);
+    return class_path(klass);
   }
 }
 
