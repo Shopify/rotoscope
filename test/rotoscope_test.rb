@@ -142,8 +142,8 @@ class RotoscopeTest < MiniTest::Test
     assert_equal [
       { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
       { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new", caller_method_level: "class" },
-      { entity: "Integer", method_name: "times", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Integer", caller_method_name: "times", caller_method_level: "instance" },
+      { entity: "Fixnum", method_name: "times", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
+      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Fixnum", caller_method_name: "times", caller_method_level: "instance" },
     ], parse_and_normalize(contents)
   end
 
@@ -416,10 +416,10 @@ class RotoscopeTest < MiniTest::Test
 
     assert_equal [
       { event: "call", entity: "Class", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "call", entity: "#<Class:0xXXXXXX>", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Class", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "call", entity: "Object", method_name: "inherited", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "Object", method_name: "inherited", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "#<Class:0xXXXXXX>", method_name: "initialize", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Class", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "Class", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 }
     ], parse_and_normalize(contents)
   end
@@ -451,6 +451,56 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_module_extend
+    contents = rotoscope_trace { Module.new { extend(MyModule) } }
+
+    assert_equal [
+      { event: "call", entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "MyModule", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "MyModule", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "MyModule", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "MyModule", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_module_extend_self
+    contents = rotoscope_trace { Module.new { extend self } }
+
+    assert_equal [
+      { event: "call", entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "#<Module:0xXXXXXX>", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "#<Module:0xXXXXXX>", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "#<Module:0xXXXXXX>", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "#<Module:0xXXXXXX>", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_flatten_module_extend
+    contents = rotoscope_trace(flatten: true) do
+      m = Module.new { extend(MyModule) }
+      m.module_method
+    end
+
+    assert_equal [
+      { entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
+      { entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: "new", caller_method_level: "class" },
+      { entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: "initialize", caller_method_level: "instance" },
+      { entity: "MyModule", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: "extend", caller_method_level: "class" },
+      { entity: "MyModule", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: "extend", caller_method_level: "class" },
+      { entity: "#<Module:0xXXXXXX>", method_name: "module_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
+    ], parse_and_normalize(contents)
+  end
+
   private
 
   def parse_and_normalize(csv_string)
@@ -459,6 +509,9 @@ class RotoscopeTest < MiniTest::Test
       row[:lineno] = -1
       row[:filepath] = row[:filepath].gsub(ROOT_FIXTURE_PATH, '')
       row[:entity] = row[:entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
+      if row.key?(:caller_entity)
+        row[:caller_entity] = row[:caller_entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
+      end
       row
     end
   end

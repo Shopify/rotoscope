@@ -14,9 +14,10 @@
 #include "tracepoint.h"
 
 VALUE cRotoscope, cTracePoint;
+ID id_initialize;
 
 // recursive with singleton2str
-static rs_class_desc_t class2str(VALUE klass);
+static VALUE class2str(VALUE klass);
 
 static unsigned long gettid() {
   return NUM2ULONG(rb_obj_id(rb_thread_current()));
@@ -58,35 +59,27 @@ static bool is_class_singleton(VALUE klass) {
 
 static VALUE singleton2str(VALUE klass) {
   if (is_class_singleton(klass)) {
-    VALUE obj = class_of_singleton(klass);
-    VALUE cached_lookup = rb_class_path_cached(obj);
-    VALUE name = (NIL_P(cached_lookup)) ? rb_class_name(obj) : cached_lookup;
-    return name;
+    return class2str(class_of_singleton(klass));
   } else  // singleton of an instance
   {
     return singleton2str(CLASS_OF(klass));
   }
 }
 
-static rs_class_desc_t class2str(VALUE klass) {
-  rs_class_desc_t real_class;
-  real_class.method_level = INSTANCE_METHOD;
-
-  VALUE cached_lookup = rb_class_path_cached(klass);
-  if (RTEST(cached_lookup)) {
-    real_class.name = cached_lookup;
-  } else {
-    if (FL_TEST(klass, FL_SINGLETON)) {
-      real_class.name = singleton2str(klass);
-      if (is_class_singleton(klass)) {
-        real_class.method_level = CLASS_METHOD;
-      }
-    } else {
-      real_class.name = rb_class_path(klass);
-    }
+static VALUE class_path(VALUE klass) {
+  VALUE cached_path = rb_class_path_cached(klass);
+  if (!NIL_P(cached_path)) {
+    return cached_path;
   }
+  return rb_class_path(klass);
+}
 
-  return real_class;
+static VALUE class2str(VALUE klass) {
+  if (FL_TEST(klass, FL_SINGLETON)) {
+    return singleton2str(klass);
+  } else {
+    return class_path(klass);
+  }
 }
 
 static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg) {
@@ -101,19 +94,21 @@ static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg) {
 
 static rs_class_desc_t tracearg_class(rb_trace_arg_t *trace_arg) {
   VALUE klass;
+  const char *method_level;
   VALUE self = rb_tracearg_self(trace_arg);
 
-  if (RB_TYPE_P(self, T_MODULE) || RB_TYPE_P(self, T_OBJECT)) {
-    klass = CLASS_OF(self);
-  } else if (RB_TYPE_P(self, T_CLASS)) {
-    // Does the object have an attached singleton?
-    // If not, name based on self instead of its singleton
-    klass = (FL_TEST(CLASS_OF(self), FL_SINGLETON)) ? CLASS_OF(self) : self;
+  if ((RB_TYPE_P(self, T_CLASS) || RB_TYPE_P(self, T_MODULE)) &&
+      SYM2ID(rb_tracearg_method_id(trace_arg)) != id_initialize) {
+    method_level = CLASS_METHOD;
+    klass = self;
   } else {
-    klass = rb_tracearg_defined_class(trace_arg);
+    method_level = INSTANCE_METHOD;
+    klass = rb_obj_class(self);
   }
 
-  return class2str(klass);
+  return (rs_class_desc_t){
+      .name = class2str(klass), .method_level = method_level,
+  };
 }
 
 static VALUE tracearg_method_name(rb_trace_arg_t *trace_arg) {
@@ -372,6 +367,8 @@ VALUE rotoscope_state(VALUE self) {
 
 void Init_rotoscope(void) {
   cTracePoint = rb_const_get(rb_cObject, rb_intern("TracePoint"));
+
+  id_initialize = rb_intern("initialize");
 
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
