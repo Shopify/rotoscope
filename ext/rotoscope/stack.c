@@ -14,7 +14,7 @@ static void insert_root_node(rs_stack_t *stack) {
                         .method_name = rb_unknown_str,
                         .method_level = UNKNOWN_STR,
                         .lineno = 0};
-  rs_stack_push(stack, root_trace);
+  rs_stack_push(stack, root_trace, false);
 }
 
 static void resize_buffer(rs_stack_t *stack) {
@@ -31,15 +31,16 @@ bool rs_stack_full(rs_stack_t *stack) {
 
 bool rs_stack_empty(rs_stack_t *stack) { return stack->top < 0; }
 
-rs_stack_frame_t rs_stack_push(rs_stack_t *stack, rs_tracepoint_t trace) {
+rs_stack_frame_t rs_stack_push(rs_stack_t *stack, rs_tracepoint_t trace,
+                               bool blacklisted) {
   if (rs_stack_full(stack)) {
     resize_buffer(stack);
   }
 
   rs_stack_frame_t *caller =
       rs_stack_empty(stack) ? NULL : rs_stack_peek(stack);
-  rs_stack_frame_t new_frame =
-      (rs_stack_frame_t){.tp = trace, .caller = caller};
+  rs_stack_frame_t new_frame = (rs_stack_frame_t){
+      .tp = trace, .caller = caller, .blacklisted = blacklisted};
 
   stack->contents[++stack->top] = new_frame;
   return new_frame;

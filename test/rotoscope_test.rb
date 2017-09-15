@@ -424,13 +424,22 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
-  def test_dynamic_methods_in_blacklist
-    skip <<-FAILING_TEST_CASE
-      Return events for dynamically created methods (define_method, define_singleton_method)
-      do not have the correct stack frame information (the call of a dynamically defined method
-      is correctly treated as a Ruby :call, but its return must be treated as a :c_return)
-    FAILING_TEST_CASE
+  def test_block_defined_methods
+    contents = rotoscope_trace { Example.apply("my value!") }
 
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "contents", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "contents", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "contents=", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "contents=", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_block_defined_methods_in_blacklist
     contents = rotoscope_trace(blacklist: [MONADIFY_PATH]) { Example.apply("my value!") }
 
     assert_equal [
@@ -441,13 +450,21 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
-  def test_flatten_with_dynamic_methods_in_blacklist
-    # the failing test above passes when using `flatten: true` since unmatched stack returns are ignored
+  def test_flatten_with_block_defined_methods_in_blacklist
     contents = rotoscope_trace(blacklist: [MONADIFY_PATH], flatten: true) { Example.apply("my value!") }
 
     assert_equal [
       { entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
       { entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "apply", caller_method_level: "class" },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_flatten_with_invoking_block_defined_methods
+    contents = rotoscope_trace(blacklist: [MONADIFY_PATH], flatten: false) { Example.contents }
+
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
     ], parse_and_normalize(contents)
   end
 
