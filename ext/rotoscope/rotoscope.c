@@ -131,38 +131,6 @@ static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg,
 
 static bool in_fork(Rotoscope *config) { return config->pid != getpid(); }
 
-// Knowingly produces false positives, but not false negatives
-static bool tracepoint_entities_match(VALUE tpval1, VALUE tpval2) {
-  rb_trace_arg_t *t1 = rb_tracearg_from_tracepoint(tpval1);
-  rb_trace_arg_t *t2 = rb_tracearg_from_tracepoint(tpval2);
-  if (rb_tracearg_method_id(t1) == rb_tracearg_method_id(t2)) return true;
-  if (rb_tracearg_self(t1) == rb_tracearg_self(t2)) return true;
-  return false;
-}
-
-static bool tracecmp(rs_tracepoint_t *new_call, rs_tracepoint_t *old_call) {
-  if (!rb_str_cmp(new_call->method_name, old_call->method_name) &&
-      !rb_str_cmp(new_call->entity, old_call->entity) &&
-      new_call->method_level == old_call->method_level) {
-    return true;
-  }
-
-  // Some module methods have their call events resolve to `Module`, while their
-  // return events resolve to the proper class invoked. This loosens the
-  // comparison test to make sure we pop the stack correctly in these cases.
-  if (!rb_str_cmp(new_call->method_name, old_call->method_name)) {
-    char *method_name_str = StringValueCStr(old_call->method_name);
-    if (!strcmp(StringValueCStr(old_call->entity), "Module")) {
-      if (!strcmp(method_name_str, "extend") ||
-          !strcmp(method_name_str, "extend_object") ||
-          !strcmp(method_name_str, "initialize")) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
 static VALUE unsafe_obj_method(VALUE argv) {
   VALUE *args = (VALUE *)argv;
   return rb_obj_method(args[0], args[1]);
@@ -201,24 +169,16 @@ static void log_trace_event(FILE *stream, rs_tracepoint_t trace) {
   fprintf(stream, RS_CSV_FORMAT "\n", RS_CSV_VALUES(trace));
 }
 
-static bool stack_rejection(rs_stack_t *stack, rs_tracepoint_t *trace,
-                            rb_event_flag_t event) {
-  if (METHOD_RETURN_P(event)) {
-    rs_stack_frame_t *last_frame = rs_stack_peek(stack);
-    if (!tracecmp(trace, &last_frame->tp)) return true;
-  }
-
-  return false;
+static bool invalid_stack_return(rs_stack_t *stack, rs_tracepoint_t *trace) {
+  rs_stack_frame_t *last_frame = rs_stack_peek(stack);
+  return !rs_raw_tracepoint_cmp(&trace->raw, &last_frame->tp.raw);
 }
 
-static void repair_trace_filepath(rs_stack_t *stack, rs_tracepoint_t *trace) {
-  rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(trace->raw);
-
+static void copy_filepath_from_caller(rs_stack_t *stack,
+                                      rs_tracepoint_t *trace) {
   rs_stack_frame_t *last_frame = rs_stack_peek(stack);
-  if (endof_block_method(trace_arg)) {
-    trace->filepath = last_frame->tp.filepath;
-    trace->lineno = last_frame->tp.lineno;
-  }
+  trace->filepath = last_frame->tp.filepath;
+  trace->lineno = last_frame->tp.lineno;
 }
 
 static void event_hook(VALUE tpval, void *data) {
@@ -233,6 +193,7 @@ static void event_hook(VALUE tpval, void *data) {
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
   rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
   rs_callsite_t trace_path = tracearg_path(trace_arg);
+  rs_raw_tracepoint_t raw_trace = rs_raw_from_tracepoint(tpval);
 
   if (rejected_path(trace_path.filepath, config)) {
     if (METHOD_CALL_P(event_flag)) return;
@@ -241,22 +202,24 @@ static void event_hook(VALUE tpval, void *data) {
 
     // Does this match the last caller?
     rs_stack_frame_t *last_frame = rs_stack_peek(&config->stack);
-    if (!tracepoint_entities_match(tpval, last_frame->tp.raw)) return;
+    if (!rs_raw_tracepoint_cmp(&raw_trace, &last_frame->tp.raw)) return;
     // Are we dealing with a block return in wrong context?
     if (!endof_block_method(trace_arg)) return;
   }
 
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
-  trace.raw = tpval;
+  trace.raw = raw_trace;
 
   if (!strcmp("Rotoscope", StringValueCStr(trace.entity))) return;
-  if (stack_rejection(&config->stack, &trace, event_flag)) return;
 
   rs_stack_frame_t frame;
   if (METHOD_CALL_P(event_flag)) {
     frame = rs_stack_push(&config->stack, trace);
   } else {
-    repair_trace_filepath(&config->stack, &trace);
+    if (invalid_stack_return(&config->stack, &trace)) return;
+    if (endof_block_method(trace_arg)) {
+      copy_filepath_from_caller(&config->stack, &trace);
+    }
     rs_stack_pop(&config->stack);
   }
 
