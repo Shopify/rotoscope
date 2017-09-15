@@ -1,5 +1,6 @@
 #ifndef _INC_ROTOSCOPE_STACK_H_
 #define _INC_ROTOSCOPE_STACK_H_
+
 #include <stdbool.h>
 #include "tracepoint.h"
 
