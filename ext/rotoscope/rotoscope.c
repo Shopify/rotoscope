@@ -16,9 +16,6 @@
 VALUE cRotoscope, cTracePoint;
 ID id_initialize;
 
-// recursive with singleton2str
-static VALUE class2str(VALUE klass);
-
 static unsigned long gettid() {
   return NUM2ULONG(rb_obj_id(rb_thread_current()));
 }
@@ -48,24 +45,6 @@ static bool rejected_path(VALUE path, Rotoscope *config) {
   return false;
 }
 
-static VALUE class_of_singleton(VALUE klass) {
-  return rb_iv_get(klass, "__attached__");
-}
-
-static bool is_class_singleton(VALUE klass) {
-  VALUE obj = class_of_singleton(klass);
-  return (RB_TYPE_P(obj, T_MODULE) || RB_TYPE_P(obj, T_CLASS));
-}
-
-static VALUE singleton2str(VALUE klass) {
-  if (is_class_singleton(klass)) {
-    return class2str(class_of_singleton(klass));
-  } else  // singleton of an instance
-  {
-    return singleton2str(CLASS_OF(klass));
-  }
-}
-
 static VALUE class_path(VALUE klass) {
   VALUE cached_path = rb_class_path_cached(klass);
   if (!NIL_P(cached_path)) {
@@ -74,12 +53,19 @@ static VALUE class_path(VALUE klass) {
   return rb_class_path(klass);
 }
 
+static VALUE singleton_object(VALUE singleton_class) {
+  return rb_iv_get(singleton_class, "__attached__");
+}
+
 static VALUE class2str(VALUE klass) {
-  if (FL_TEST(klass, FL_SINGLETON)) {
-    return singleton2str(klass);
-  } else {
-    return class_path(klass);
+  while (FL_TEST(klass, FL_SINGLETON)) {
+    klass = singleton_object(klass);
+    if (!RB_TYPE_P(klass, T_MODULE) && !RB_TYPE_P(klass, T_CLASS)) {
+      // singleton of an instance
+      klass = rb_obj_class(klass);
+    }
   }
+  return class_path(klass);
 }
 
 static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg) {
