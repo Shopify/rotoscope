@@ -132,8 +132,8 @@ static void log_trace_event_with_caller(FILE *stream,
     caller = caller->caller;
   }
 
-  sprintf((char *)output_buffer, RS_FLATTENED_CSV_FORMAT "\n",
-          RS_FLATTENED_CSV_VALUES(&stack_frame->tp, &caller->tp));
+  snprintf((char *)output_buffer, LOG_BUFFER_SIZE, RS_FLATTENED_CSV_FORMAT "\n",
+           RS_FLATTENED_CSV_VALUES(&stack_frame->tp, &caller->tp));
 
   if (rs_strmemo_uniq(call_memo, output_buffer)) {
     fputs((char *)output_buffer, stream);
