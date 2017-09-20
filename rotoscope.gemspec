@@ -1,10 +1,14 @@
 # frozen_string_literal: true
+lib = File.expand_path("../lib", __FILE__)
+$LOAD_PATH.unshift(lib) unless $LOAD_PATH.include?(lib)
+require "rotoscope/version"
+
 Gem::Specification.new do |s|
   s.name        = 'rotoscope'
-  s.version     = '0.2.1'
-  s.date        = '2017-06-19'
+  s.version     = Rotoscope::VERSION
+  s.date        = '2017-09-20'
 
-  s.authors     = ["Jahfer Husain"]
+  s.authors     = ["Jahfer Husain", "Dylan Thacker-Smith"]
   s.email       = 'jahfer.husain@shopify.com'
   s.homepage    = 'https://github.com/shopify/rotoscope'
   s.license     = 'MIT'
@@ -12,7 +16,9 @@ Gem::Specification.new do |s|
   s.summary     = "Tracing Ruby"
   s.description = "High-performance logger of Ruby method invocations"
 
-  s.files       = `git ls-files`.split("\n")
+  s.files       = `git ls-files -z`.split("\x0").reject do |f|
+    f.match(%r{^(test)/})
+  end
   s.required_ruby_version = ">= 2.2.0"
   s.extensions = %w(ext/rotoscope/extconf.rb)
 
