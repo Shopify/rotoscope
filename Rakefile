@@ -4,7 +4,9 @@
 # ==========================================================
 GEMSPEC = Gem::Specification.load('rotoscope.gemspec')
 
+require 'bundler/gem_tasks'
 require 'rubygems/package_task'
+
 Gem::PackageTask.new(GEMSPEC) do |pkg|
 end
 
