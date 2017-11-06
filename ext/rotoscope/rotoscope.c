@@ -160,25 +160,22 @@ static void event_hook(VALUE tpval, void *data) {
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
   if (!strcmp("Rotoscope", StringValueCStr(trace.entity))) return;
 
-  bool blacklisted;
   if (event_flag & EVENT_CALL) {
-    blacklisted = rejected_entity(trace.entity, config);
-    rs_stack_push(&config->stack, trace, blacklisted);
+    rs_stack_push(&config->stack, trace);
   } else {
-    blacklisted = rs_stack_peek(&config->stack)->blacklisted;
     rs_stack_pop(&config->stack);
   }
-  if (blacklisted) return;
+
+  if (rejected_entity(trace.entity, config)) return;
 
   if (config->flatten_output) {
     if (event_flag & EVENT_CALL) {
-      rs_stack_frame_t *caller = rs_stack_peek(&config->stack);
-      do {
-        caller = rs_stack_below(&config->stack, caller);
-      } while (caller && caller->blacklisted);
-      if (caller) {
-        log_trace_event_with_caller(config->log, rs_stack_peek(&config->stack),
-                                    caller, &config->call_memo);
+      rs_stack_frame_t *stack_frame = rs_stack_peek(&config->stack);
+      rs_stack_frame_t *caller_frame =
+          rs_stack_below(&config->stack, stack_frame);
+      if (!rejected_entity(caller_frame->tp.entity, config)) {
+        log_trace_event_with_caller(config->log, stack_frame, caller_frame,
+                                    &config->call_memo);
       }
     }
   } else {
@@ -241,10 +238,6 @@ static Rotoscope *get_config(VALUE self) {
   return config;
 }
 
-bool blacklisted_root(Rotoscope *config) {
-  return !NIL_P(config->entity_whitelist);
-}
-
 VALUE initialize(int argc, VALUE *argv, VALUE self) {
   Rotoscope *config = get_config(self);
   VALUE output_path, entity_whitelist, flatten;
@@ -277,7 +270,7 @@ VALUE initialize(int argc, VALUE *argv, VALUE self) {
   else
     write_csv_header(config->log, RS_CSV_HEADER);
 
-  rs_stack_init(&config->stack, STACK_CAPACITY, blacklisted_root(config));
+  rs_stack_init(&config->stack, STACK_CAPACITY);
   config->call_memo = NULL;
   config->state = RS_OPEN;
   return self;
@@ -295,7 +288,7 @@ VALUE rotoscope_stop_trace(VALUE self) {
   if (rb_tracepoint_enabled_p(config->tracepoint)) {
     rb_tracepoint_disable(config->tracepoint);
     config->state = RS_OPEN;
-    rs_stack_reset(&config->stack, blacklisted_root(config));
+    rs_stack_reset(&config->stack);
   }
 
   return Qnil;

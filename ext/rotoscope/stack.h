@@ -7,7 +7,6 @@
 
 typedef struct rs_stack_frame_t {
   struct rs_tracepoint_t tp;
-  bool blacklisted;
 } rs_stack_frame_t;
 
 typedef struct {
@@ -16,10 +15,10 @@ typedef struct {
   rs_stack_frame_t *contents;
 } rs_stack_t;
 
-void rs_stack_init(rs_stack_t *stack, unsigned int capacity, bool blacklisted_root);
-void rs_stack_reset(rs_stack_t *stack, bool blacklisted_root);
+void rs_stack_init(rs_stack_t *stack, unsigned int capacity);
+void rs_stack_reset(rs_stack_t *stack);
 void rs_stack_free(rs_stack_t *stack);
-rs_stack_frame_t rs_stack_push(rs_stack_t *stack, rs_tracepoint_t trace, bool backlisted);
+rs_stack_frame_t rs_stack_push(rs_stack_t *stack, rs_tracepoint_t trace);
 bool rs_stack_empty(rs_stack_t *stack);
 bool rs_stack_full(rs_stack_t *stack);
 rs_stack_frame_t rs_stack_pop(rs_stack_t *stack);
