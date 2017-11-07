@@ -17,8 +17,8 @@ typedef struct {
   rs_stack_frame_t *contents;
 } rs_stack_t;
 
-void rs_stack_init(rs_stack_t *stack, unsigned int capacity);
-void rs_stack_reset(rs_stack_t *stack, unsigned int capacity);
+void rs_stack_init(rs_stack_t *stack, unsigned int capacity, bool blacklisted_root);
+void rs_stack_reset(rs_stack_t *stack, bool blacklisted_root);
 void rs_stack_free(rs_stack_t *stack);
 rs_stack_frame_t rs_stack_push(rs_stack_t *stack, rs_tracepoint_t trace, bool backlisted);
 bool rs_stack_empty(rs_stack_t *stack);

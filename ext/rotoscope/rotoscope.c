@@ -37,12 +37,9 @@ static const char *evflag2name(rb_event_flag_t evflag) {
   }
 }
 
-static bool rejected_path(VALUE path, Rotoscope *config) {
-  for (unsigned long i = 0; i < config->blacklist_size; i++) {
-    if (strstr(StringValueCStr(path), config->blacklist[i])) return true;
-  }
-
-  return false;
+static bool rejected_entity(VALUE entity, Rotoscope *config) {
+  if (NIL_P(config->entity_whitelist)) return false;
+  return rb_hash_lookup(config->entity_whitelist, entity) != Qtrue;
 }
 
 static VALUE class_path(VALUE klass) {
@@ -154,34 +151,39 @@ static void event_hook(VALUE tpval, void *data) {
   rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
 
   rs_callsite_t trace_path;
-  bool blacklisted;
   if (event_flag & EVENT_CALL) {
     trace_path = tracearg_path(trace_arg);
-    blacklisted = rejected_path(trace_path.filepath, config);
   } else {
     if (rs_stack_empty(&config->stack)) return;
     rs_stack_frame_t *call_frame = rs_stack_peek(&config->stack);
     trace_path = (rs_callsite_t){
         .filepath = call_frame->tp.filepath, .lineno = call_frame->tp.lineno,
     };
-    blacklisted = call_frame->blacklisted;
   }
 
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
   if (!strcmp("Rotoscope", StringValueCStr(trace.entity))) return;
 
+  bool blacklisted;
   if (event_flag & EVENT_CALL) {
+    blacklisted = rejected_entity(trace.entity, config);
     rs_stack_push(&config->stack, trace, blacklisted);
   } else {
+    blacklisted = rs_stack_peek(&config->stack)->blacklisted;
     rs_stack_pop(&config->stack);
   }
-
   if (blacklisted) return;
 
   if (config->flatten_output) {
     if (event_flag & EVENT_CALL) {
-      log_trace_event_with_caller(config->log, rs_stack_peek(&config->stack),
-                                  &config->call_memo);
+      rs_stack_frame_t *caller = rs_stack_peek(&config->stack)->caller;
+      while (caller && caller->blacklisted) {
+        caller = caller->caller;
+      }
+      if (caller) {
+        log_trace_event_with_caller(config->log, rs_stack_peek(&config->stack),
+                                    &config->call_memo);
+      }
     }
   } else {
     log_trace_event(config->log, &trace);
@@ -213,6 +215,7 @@ static void close_log_handle(Rotoscope *config) {
 static void rs_gc_mark(Rotoscope *config) {
   rb_gc_mark(config->log_path);
   rb_gc_mark(config->tracepoint);
+  rb_gc_mark(config->entity_whitelist);
   rs_stack_mark(&config->stack);
 }
 
@@ -220,7 +223,6 @@ void rs_dealloc(Rotoscope *config) {
   close_log_handle(config);
   rs_stack_free(&config->stack);
   rs_strmemo_free(config->call_memo);
-  xfree(config->blacklist);
   xfree(config);
 }
 
@@ -229,6 +231,7 @@ static VALUE rs_alloc(VALUE klass) {
   VALUE self =
       Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
   config->log_path = Qnil;
+  config->entity_whitelist = Qnil;
   config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
                                          event_hook, (void *)config);
   config->pid = getpid();
@@ -242,42 +245,25 @@ static Rotoscope *get_config(VALUE self) {
   return config;
 }
 
-void copy_blacklist(Rotoscope *config, VALUE blacklist) {
-  Check_Type(blacklist, T_ARRAY);
-
-  size_t blacklist_malloc_size =
-      RARRAY_LEN(blacklist) * sizeof(*config->blacklist);
-
-  for (long i = 0; i < RARRAY_LEN(blacklist); i++) {
-    VALUE ruby_string = RARRAY_AREF(blacklist, i);
-    Check_Type(ruby_string, T_STRING);
-    blacklist_malloc_size += RSTRING_LEN(ruby_string) + 1;
-  }
-
-  config->blacklist = ruby_xmalloc(blacklist_malloc_size);
-  config->blacklist_size = RARRAY_LEN(blacklist);
-  char *str = (char *)(config->blacklist + config->blacklist_size);
-
-  for (unsigned long i = 0; i < config->blacklist_size; i++) {
-    VALUE ruby_string = RARRAY_AREF(blacklist, i);
-
-    config->blacklist[i] = str;
-    memcpy(str, RSTRING_PTR(ruby_string), RSTRING_LEN(ruby_string));
-    str += RSTRING_LEN(ruby_string);
-    *str = '\0';
-    str++;
-  }
+bool blacklisted_root(Rotoscope *config) {
+  return !NIL_P(config->entity_whitelist);
 }
 
 VALUE initialize(int argc, VALUE *argv, VALUE self) {
   Rotoscope *config = get_config(self);
-  VALUE output_path, blacklist, flatten;
+  VALUE output_path, entity_whitelist, flatten;
 
-  rb_scan_args(argc, argv, "12", &output_path, &blacklist, &flatten);
+  rb_scan_args(argc, argv, "12", &output_path, &entity_whitelist, &flatten);
   Check_Type(output_path, T_STRING);
 
-  if (!NIL_P(blacklist)) {
-    copy_blacklist(config, blacklist);
+  if (!NIL_P(entity_whitelist)) {
+    Check_Type(entity_whitelist, T_ARRAY);
+    config->entity_whitelist = rb_hash_new();
+    for (long i = 0; i < RARRAY_LEN(entity_whitelist); i++) {
+      VALUE item = RARRAY_AREF(entity_whitelist, i);
+      Check_Type(item, T_STRING);
+      rb_hash_aset(config->entity_whitelist, item, Qtrue);
+    }
   }
 
   config->flatten_output = RTEST(flatten);
@@ -295,7 +281,7 @@ VALUE initialize(int argc, VALUE *argv, VALUE self) {
   else
     write_csv_header(config->log, RS_CSV_HEADER);
 
-  rs_stack_init(&config->stack, STACK_CAPACITY);
+  rs_stack_init(&config->stack, STACK_CAPACITY, blacklisted_root(config));
   config->call_memo = NULL;
   config->state = RS_OPEN;
   return self;
@@ -313,7 +299,7 @@ VALUE rotoscope_stop_trace(VALUE self) {
   if (rb_tracepoint_enabled_p(config->tracepoint)) {
     rb_tracepoint_disable(config->tracepoint);
     config->state = RS_OPEN;
-    rs_stack_reset(&config->stack, STACK_CAPACITY);
+    rs_stack_reset(&config->stack, blacklisted_root(config));
   }
 
   return Qnil;
@@ -333,7 +319,6 @@ VALUE rotoscope_mark(int argc, VALUE *argv, VALUE self) {
 
   Rotoscope *config = get_config(self);
   if (config->log != NULL && !in_fork(config)) {
-    rs_stack_reset(&config->stack, STACK_CAPACITY);
     rs_strmemo_free(config->call_memo);
     fprintf(config->log, "--- %s\n", StringValueCStr(str));
   }

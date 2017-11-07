@@ -1,14 +1,12 @@
 module Monadify
-  def self.extended(base)
-    base.define_singleton_method("contents=") { |val| val }
-  end
+  define_singleton_method("contents=") { |val| val }
 
-  define_method("contents") do
+  define_singleton_method("contents") do
     42
   end
 
   def monad(value)
-    contents
-    self.contents = value
+    Monadify.contents
+    Monadify.contents = value
   end
 end
