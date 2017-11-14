@@ -85,8 +85,8 @@ IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
 ## API
 
 - [Public Class Methods](#public-class-methods)
-  - [`trace`](#rotoscopetracedest-blacklist--flatten-false)
-  - [`new`](#rotoscopenewdest-blacklist)
+  - [`trace`](#rotoscopetracedest-entity_whitelist-nil-flatten-false)
+  - [`new`](#rotoscopenewdest-entity_whitelist-nil-flatten-false)
 - [Public Instance Methods](#public-instance-methods)
   - [`trace`](#rotoscopetraceblock)
   - [`start_trace`](#rotoscopestart_trace)
@@ -101,23 +101,23 @@ IO,write,instance,example/flattened_dog.rb,11,IO,puts,instance
 
 ### Public Class Methods
 
-#### `Rotoscope::trace(dest, blacklist: [], flatten: false)`
+#### `Rotoscope::trace(dest, entity_whitelist: nil, flatten: false)`
 
-Writes all calls and returns of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. The `flatten` option reduces the output data to a deduplicated list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`.
+Writes all calls and returns of methods to `dest`, except for those whose entity doesn't contain any entry in a provided `entity_whitelist`. `dest` is either a filename or an `IO`. The `flatten` option reduces the output data to a deduplicated list of method invocations and their caller, instead of all `call` and `return` events. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`.
 
 ```ruby
 Rotoscope.trace(dest) { |rs| ... }
 # or...
-Rotoscope.trace(dest, blacklist: ["/.gem/"], flatten: true) { |rs| ... }
+Rotoscope.trace(dest, entity_whitelist: ["Foo", "Bar"], flatten: true) { |rs| ... }
 ```
 
-#### `Rotoscope::new(dest, blacklist: [], flatten: false)`
+#### `Rotoscope::new(dest, entity_whitelist: nil, flatten: false)`
 
 Same interface as `Rotoscope::trace`, but returns a `Rotoscope` instance, allowing fine-grain control via `Rotoscope#start_trace` and `Rotoscope#stop_trace`.
 ```ruby
 rs = Rotoscope.new(dest)
 # or...
-rs = Rotoscope.new(dest, blacklist: ["/.gem/"], flatten: true)
+rs = Rotoscope.new(dest, entity_whitelist: ["Foo", "Bar"], flatten: true)
 ```
 
 ---
