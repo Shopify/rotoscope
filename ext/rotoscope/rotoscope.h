@@ -48,8 +48,7 @@ typedef struct {
   FILE *log;
   VALUE log_path;
   VALUE tracepoint;
-  const char **blacklist;
-  unsigned long blacklist_size;
+  VALUE entity_whitelist;
   bool flatten_output;
   pid_t pid;
   unsigned long tid;
