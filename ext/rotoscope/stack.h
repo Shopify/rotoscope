@@ -8,7 +8,6 @@
 typedef struct rs_stack_frame_t {
   struct rs_tracepoint_t tp;
   bool blacklisted;
-  struct rs_stack_frame_t *caller;
 } rs_stack_frame_t;
 
 typedef struct {
@@ -25,6 +24,7 @@ bool rs_stack_empty(rs_stack_t *stack);
 bool rs_stack_full(rs_stack_t *stack);
 rs_stack_frame_t rs_stack_pop(rs_stack_t *stack);
 rs_stack_frame_t *rs_stack_peek(rs_stack_t *stack);
+rs_stack_frame_t *rs_stack_below(rs_stack_t *stack, rs_stack_frame_t *frame);
 void rs_stack_mark(rs_stack_t *stack);
 
 #endif

@@ -172,10 +172,10 @@ static void event_hook(VALUE tpval, void *data) {
 
   if (config->flatten_output) {
     if (event_flag & EVENT_CALL) {
-      rs_stack_frame_t *caller = rs_stack_peek(&config->stack)->caller;
-      while (caller && caller->blacklisted) {
-        caller = caller->caller;
-      }
+      rs_stack_frame_t *caller = rs_stack_peek(&config->stack);
+      do {
+        caller = rs_stack_below(&config->stack, caller);
+      } while (caller && caller->blacklisted);
       if (caller) {
         log_trace_event_with_caller(config->log, rs_stack_peek(&config->stack),
                                     caller, &config->call_memo);
