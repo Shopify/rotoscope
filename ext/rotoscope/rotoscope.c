@@ -123,14 +123,10 @@ static void log_trace_event(FILE *stream, rs_tracepoint_t *trace) {
 unsigned char output_buffer[LOG_BUFFER_SIZE];
 static void log_trace_event_with_caller(FILE *stream,
                                         rs_stack_frame_t *stack_frame,
+                                        rs_stack_frame_t *caller_frame,
                                         rs_strmemo_t **call_memo) {
-  rs_stack_frame_t *caller = stack_frame->caller;
-  while (caller->blacklisted) {
-    caller = caller->caller;
-  }
-
   snprintf((char *)output_buffer, LOG_BUFFER_SIZE, RS_FLATTENED_CSV_FORMAT "\n",
-           RS_FLATTENED_CSV_VALUES(&stack_frame->tp, &caller->tp));
+           RS_FLATTENED_CSV_VALUES(&stack_frame->tp, &caller_frame->tp));
 
   if (rs_strmemo_uniq(call_memo, output_buffer)) {
     fputs((char *)output_buffer, stream);
@@ -182,7 +178,7 @@ static void event_hook(VALUE tpval, void *data) {
       }
       if (caller) {
         log_trace_event_with_caller(config->log, rs_stack_peek(&config->stack),
-                                    &config->call_memo);
+                                    caller, &config->call_memo);
       }
     }
   } else {
