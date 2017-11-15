@@ -37,10 +37,8 @@ rs_stack_frame_t rs_stack_push(rs_stack_t *stack, rs_tracepoint_t trace,
     resize_buffer(stack);
   }
 
-  rs_stack_frame_t *caller =
-      rs_stack_empty(stack) ? NULL : rs_stack_peek(stack);
-  rs_stack_frame_t new_frame = (rs_stack_frame_t){
-      .tp = trace, .caller = caller, .blacklisted = blacklisted};
+  rs_stack_frame_t new_frame =
+      (rs_stack_frame_t){.tp = trace, .blacklisted = blacklisted};
 
   stack->contents[++stack->top] = new_frame;
   return new_frame;
@@ -62,6 +60,18 @@ rs_stack_frame_t *rs_stack_peek(rs_stack_t *stack) {
   }
 
   return &stack->contents[stack->top];
+}
+
+rs_stack_frame_t *rs_stack_below(rs_stack_t *stack, rs_stack_frame_t *frame) {
+  if (frame < stack->contents || frame > stack->contents + stack->top) {
+    fprintf(stderr, "Invalid stack frame (bottom: %p, frame: %p, top: %p)\n",
+            stack->contents, frame, &stack->contents[stack->top]);
+    exit(1);
+  } else if (stack->contents == frame) {
+    return NULL;
+  } else {
+    return frame - 1;
+  }
 }
 
 void rs_stack_reset(rs_stack_t *stack, bool blacklisted_root) {
