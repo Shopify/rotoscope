@@ -71,7 +71,7 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_new
-    rs = Rotoscope.new(@logfile, entity_whitelist: %w(Foo Bar), flatten: true)
+    rs = Rotoscope.new(@logfile, blacklist: ['tmp'], flatten: true)
     assert rs.is_a?(Rotoscope)
   end
 
@@ -270,8 +270,8 @@ class RotoscopeTest < MiniTest::Test
     assert_frames_consistent contents
   end
 
-  def test_trace_ignores_calls_if_not_whitelisted
-    contents = rotoscope_trace(entity_whitelist: ["FixtureOuter"]) do
+  def test_trace_ignores_calls_if_blacklisted
+    contents = rotoscope_trace(blacklist: [INNER_FIXTURE_PATH, OUTER_FIXTURE_PATH]) do
       foo = FixtureOuter.new
       foo.do_work
     end
@@ -430,17 +430,17 @@ class RotoscopeTest < MiniTest::Test
     assert_equal [
       { event: "call", entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "call", entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "call", entity: "Monadify", method_name: "contents", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
-      { event: "return", entity: "Monadify", method_name: "contents", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
-      { event: "call", entity: "Monadify", method_name: "contents=", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
-      { event: "return", entity: "Monadify", method_name: "contents=", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "contents", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "contents", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "contents=", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "contents=", method_level: "class", filepath: "/monadify.rb", lineno: -1 },
       { event: "return", entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
       { event: "return", entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
     ], parse_and_normalize(contents)
   end
 
-  def test_block_defined_methods_not_in_whitelist
-    contents = rotoscope_trace(entity_whitelist: ['Example']) { Example.apply("my value!") }
+  def test_block_defined_methods_in_blacklist
+    contents = rotoscope_trace(blacklist: [MONADIFY_PATH]) { Example.apply("my value!") }
 
     assert_equal [
       { event: "call", entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
@@ -450,20 +450,21 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
-  def test_flatten_with_block_defined_methods_in_not_in_whitelist
-    contents = rotoscope_trace(entity_whitelist: ['Example'], flatten: true) { Example.apply("my value!") }
+  def test_flatten_with_block_defined_methods_in_blacklist
+    contents = rotoscope_trace(blacklist: [MONADIFY_PATH], flatten: true) { Example.apply("my value!") }
 
     assert_equal [
+      { entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
       { entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "apply", caller_method_level: "class" },
     ], parse_and_normalize(contents)
   end
 
   def test_flatten_with_invoking_block_defined_methods
-    contents = rotoscope_trace(entity_whitelist: ['Monadify'], flatten: false) { Monadify.contents }
+    contents = rotoscope_trace(blacklist: [MONADIFY_PATH], flatten: false) { Example.contents }
 
     assert_equal [
-      { event: "call", entity: "Monadify", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
-      { event: "return", entity: "Monadify", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
     ], parse_and_normalize(contents)
   end
 
@@ -536,8 +537,8 @@ class RotoscopeTest < MiniTest::Test
     assert_equal csv_string.scan(/\Acall/).size, csv_string.scan(/\Areturn/).size
   end
 
-  def rotoscope_trace(entity_whitelist: nil, flatten: false)
-    Rotoscope.trace(@logfile, entity_whitelist: entity_whitelist, flatten: flatten) { |rotoscope| yield rotoscope }
+  def rotoscope_trace(blacklist: [], flatten: false)
+    Rotoscope.trace(@logfile, blacklist: blacklist, flatten: flatten) { |rotoscope| yield rotoscope }
     File.read(@logfile)
   end
 

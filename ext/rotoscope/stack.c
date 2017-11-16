@@ -5,7 +5,7 @@
 #include "ruby.h"
 #include "tracepoint.h"
 
-static void insert_root_node(rs_stack_t *stack, bool blacklisted) {
+static void insert_root_node(rs_stack_t *stack) {
   VALUE rb_unknown_str = rb_str_new_cstr(UNKNOWN_STR);
   rs_tracepoint_t root_trace =
       (rs_tracepoint_t){.event = UNKNOWN_STR,
@@ -14,7 +14,7 @@ static void insert_root_node(rs_stack_t *stack, bool blacklisted) {
                         .method_name = rb_unknown_str,
                         .method_level = UNKNOWN_STR,
                         .lineno = 0};
-  rs_stack_push(stack, root_trace, blacklisted);
+  rs_stack_push(stack, root_trace, false);
 }
 
 static void resize_buffer(rs_stack_t *stack) {
@@ -74,9 +74,9 @@ rs_stack_frame_t *rs_stack_below(rs_stack_t *stack, rs_stack_frame_t *frame) {
   }
 }
 
-void rs_stack_reset(rs_stack_t *stack, bool blacklisted_root) {
+void rs_stack_reset(rs_stack_t *stack) {
   stack->top = -1;
-  insert_root_node(stack, blacklisted_root);
+  insert_root_node(stack);
 }
 
 void rs_stack_free(rs_stack_t *stack) {
@@ -86,14 +86,13 @@ void rs_stack_free(rs_stack_t *stack) {
   stack->capacity = 0;
 }
 
-void rs_stack_init(rs_stack_t *stack, unsigned int capacity,
-                   bool blacklisted_root) {
+void rs_stack_init(rs_stack_t *stack, unsigned int capacity) {
   rs_stack_frame_t *contents = ALLOC_N(rs_stack_frame_t, capacity);
   stack->contents = contents;
   stack->capacity = capacity;
   stack->top = -1;
 
-  insert_root_node(stack, blacklisted_root);
+  insert_root_node(stack);
 }
 
 void rs_stack_mark(rs_stack_t *stack) {
