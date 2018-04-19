@@ -347,6 +347,20 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_trace_flatten_with_blacklisted_caller
+    foo = FixtureOuter.new
+    contents = rotoscope_trace(blacklist: ['/rotoscope_test.rb'], flatten: true) do
+      foo.do_work
+    end
+
+    assert_equal [
+      { entity: "FixtureInner", method_name: "do_work", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1,
+        caller_entity: "FixtureOuter", caller_method_name: "do_work", caller_method_level: "instance" },
+      { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1,
+        caller_entity: "FixtureInner", caller_method_name: "do_work", caller_method_level: "instance" },
+    ], parse_and_normalize(contents)
+  end
+
   def test_trace_uses_io_objects
     string_io = StringIO.new
     Rotoscope.trace(string_io) do
