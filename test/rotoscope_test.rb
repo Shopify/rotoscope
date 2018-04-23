@@ -33,6 +33,14 @@ class Example
     def apply(val)
       monad val
     end
+
+    define_method(:'escaping"needed') do
+      true
+    end
+
+    define_method(:'escaping"needed2') do
+      public_send(:'escaping"needed')
+    end
   end
 
   def normal_method
@@ -529,6 +537,32 @@ class RotoscopeTest < MiniTest::Test
       { entity: "MyModule", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: "extend", caller_method_level: "class" },
       { entity: "MyModule", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: "extend", caller_method_level: "class" },
       { entity: "#<Module:0xXXXXXX>", method_name: "module_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_method_with_quotes
+    contents = rotoscope_trace do
+      Example.public_send(:'escaping"needed')
+    end
+
+    assert_equal [
+      { event: "call", entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "call", entity: "Example", method_name: 'escaping"needed', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: 'escaping"needed', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+      { event: "return", entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1 },
+    ], parse_and_normalize(contents)
+  end
+
+  def test_flatten_methods_with_quotes
+    contents = rotoscope_trace(flatten: true) do
+      Example.public_send(:'escaping"needed2')
+    end
+
+    assert_equal [
+      { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
+      { entity: "Example", method_name: 'escaping"needed2', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "public_send", caller_method_level: "class" },
+      { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: 'escaping"needed2', caller_method_level: "class" },
+      { entity: "Example", method_name: 'escaping"needed', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "public_send", caller_method_level: "class" },
     ], parse_and_normalize(contents)
   end
 
