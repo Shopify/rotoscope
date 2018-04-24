@@ -14,7 +14,8 @@
 #include "tracepoint.h"
 
 VALUE cRotoscope, cTracePoint;
-ID id_initialize;
+ID id_initialize, id_gsub;
+VALUE str_quote, str_escaped_quote;
 
 static unsigned long gettid() {
   return NUM2ULONG(rb_obj_id(rb_thread_current()));
@@ -119,8 +120,18 @@ static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg,
 
 static bool in_fork(Rotoscope *config) { return config->pid != getpid(); }
 
+VALUE escape_csv_string(VALUE string) {
+  if (!memchr(RSTRING_PTR(string), '"', RSTRING_LEN(string))) {
+    return string;
+  }
+  return rb_funcall(string, id_gsub, 2, str_quote, str_escaped_quote);
+}
+
 static void log_trace_event(FILE *stream, rs_tracepoint_t *trace) {
-  fprintf(stream, RS_CSV_FORMAT "\n", RS_CSV_VALUES(trace));
+  VALUE escaped_method_name = escape_csv_string(trace->method_name);
+  fprintf(stream, RS_CSV_FORMAT "\n",
+          RS_CSV_VALUES(trace, escaped_method_name));
+  RB_GC_GUARD(escaped_method_name);
 }
 
 unsigned char output_buffer[LOG_BUFFER_SIZE];
@@ -128,8 +139,15 @@ static void log_trace_event_with_caller(FILE *stream,
                                         rs_stack_frame_t *stack_frame,
                                         rs_stack_frame_t *caller_frame,
                                         rs_strmemo_t **call_memo) {
-  snprintf((char *)output_buffer, LOG_BUFFER_SIZE, RS_FLATTENED_CSV_FORMAT "\n",
-           RS_FLATTENED_CSV_VALUES(&stack_frame->tp, &caller_frame->tp));
+  VALUE escaped_method_name = escape_csv_string(stack_frame->tp.method_name);
+  VALUE escaped_caller_method_name =
+      escape_csv_string(caller_frame->tp.method_name);
+  snprintf(
+      (char *)output_buffer, LOG_BUFFER_SIZE, RS_FLATTENED_CSV_FORMAT "\n",
+      RS_FLATTENED_CSV_VALUES(&stack_frame->tp, &caller_frame->tp,
+                              escaped_method_name, escaped_caller_method_name));
+  RB_GC_GUARD(escaped_method_name);
+  RB_GC_GUARD(escaped_caller_method_name);
 
   if (rs_strmemo_uniq(call_memo, output_buffer)) {
     fputs((char *)output_buffer, stream);
@@ -368,6 +386,12 @@ void Init_rotoscope(void) {
   cTracePoint = rb_const_get(rb_cObject, rb_intern("TracePoint"));
 
   id_initialize = rb_intern("initialize");
+  id_gsub = rb_intern("gsub");
+
+  str_quote = rb_str_new_literal("\"");
+  rb_global_variable(&str_quote);
+  str_escaped_quote = rb_str_new_literal("\"\"");
+  rb_global_variable(&str_escaped_quote);
 
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
