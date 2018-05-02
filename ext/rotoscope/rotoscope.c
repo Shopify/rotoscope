@@ -157,39 +157,34 @@ static void event_hook(VALUE tpval, void *data) {
   }
 
   rb_trace_arg_t *trace_arg = rb_tracearg_from_tracepoint(tpval);
+
+  if (rb_tracearg_defined_class(trace_arg) == cRotoscope) {
+    return;
+  }
+
   rb_event_flag_t event_flag = rb_tracearg_event_flag(trace_arg);
 
-  rs_callsite_t trace_path;
-  bool blacklisted;
-  if (event_flag & EVENT_CALL) {
-    trace_path = tracearg_path(trace_arg);
-    blacklisted = rejected_path(trace_path.filepath, config);
-  } else {
-    if (rs_stack_empty(&config->stack)) return;
-    rs_stack_frame_t *call_frame = rs_stack_peek(&config->stack);
-    trace_path = (rs_callsite_t){
-        .filepath = call_frame->tp.filepath, .lineno = call_frame->tp.lineno,
-    };
-    blacklisted = call_frame->blacklisted;
+  if (event_flag & EVENT_RETURN) {
+    if (!rs_stack_empty(&config->stack)) {
+      rs_stack_pop(&config->stack);
+    }
+    return;
   }
+
+  rs_callsite_t trace_path = tracearg_path(trace_arg);
+  bool blacklisted = rejected_path(trace_path.filepath, config);
 
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
-  if (!strcmp("Rotoscope", StringValueCStr(trace.entity))) return;
 
-  if (event_flag & EVENT_CALL) {
-    rs_stack_push(&config->stack, trace, blacklisted);
-  } else {
-    rs_stack_pop(&config->stack);
-  }
+  rs_stack_push(&config->stack, trace, blacklisted);
+
   if (blacklisted) return;
 
-  if (event_flag & EVENT_CALL) {
-    rs_stack_frame_t *stack_frame = rs_stack_peek(&config->stack);
-    rs_stack_frame_t *caller_frame =
-        rs_stack_below(&config->stack, stack_frame);
-    log_trace_event_with_caller(config->log, stack_frame, caller_frame,
-                                &config->call_memo);
-  }
+  rs_stack_frame_t *stack_frame = rs_stack_peek(&config->stack);
+  rs_stack_frame_t *caller_frame =
+      rs_stack_below(&config->stack, stack_frame);
+  log_trace_event_with_caller(config->log, stack_frame, caller_frame,
+                              &config->call_memo);
 }
 
 static void close_log_handle(Rotoscope *config) {
