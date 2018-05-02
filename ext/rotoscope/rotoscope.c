@@ -127,13 +127,6 @@ VALUE escape_csv_string(VALUE string) {
   return rb_funcall(string, id_gsub, 2, str_quote, str_escaped_quote);
 }
 
-static void log_trace_event(FILE *stream, rs_tracepoint_t *trace) {
-  VALUE escaped_method_name = escape_csv_string(trace->method_name);
-  fprintf(stream, RS_CSV_FORMAT "\n",
-          RS_CSV_VALUES(trace, escaped_method_name));
-  RB_GC_GUARD(escaped_method_name);
-}
-
 unsigned char output_buffer[LOG_BUFFER_SIZE];
 static void log_trace_event_with_caller(FILE *stream,
                                         rs_stack_frame_t *stack_frame,
@@ -142,10 +135,9 @@ static void log_trace_event_with_caller(FILE *stream,
   VALUE escaped_method_name = escape_csv_string(stack_frame->tp.method_name);
   VALUE escaped_caller_method_name =
       escape_csv_string(caller_frame->tp.method_name);
-  snprintf(
-      (char *)output_buffer, LOG_BUFFER_SIZE, RS_FLATTENED_CSV_FORMAT "\n",
-      RS_FLATTENED_CSV_VALUES(&stack_frame->tp, &caller_frame->tp,
-                              escaped_method_name, escaped_caller_method_name));
+  snprintf((char *)output_buffer, LOG_BUFFER_SIZE, RS_CSV_FORMAT "\n",
+           RS_CSV_VALUES(&stack_frame->tp, &caller_frame->tp,
+                         escaped_method_name, escaped_caller_method_name));
   RB_GC_GUARD(escaped_method_name);
   RB_GC_GUARD(escaped_caller_method_name);
 
@@ -191,16 +183,12 @@ static void event_hook(VALUE tpval, void *data) {
   }
   if (blacklisted) return;
 
-  if (config->flatten_output) {
-    if (event_flag & EVENT_CALL) {
-      rs_stack_frame_t *stack_frame = rs_stack_peek(&config->stack);
-      rs_stack_frame_t *caller_frame =
-          rs_stack_below(&config->stack, stack_frame);
-      log_trace_event_with_caller(config->log, stack_frame, caller_frame,
-                                  &config->call_memo);
-    }
-  } else {
-    log_trace_event(config->log, &trace);
+  if (event_flag & EVENT_CALL) {
+    rs_stack_frame_t *stack_frame = rs_stack_peek(&config->stack);
+    rs_stack_frame_t *caller_frame =
+        rs_stack_below(&config->stack, stack_frame);
+    log_trace_event_with_caller(config->log, stack_frame, caller_frame,
+                                &config->call_memo);
   }
 }
 
@@ -287,16 +275,15 @@ void copy_blacklist(Rotoscope *config, VALUE blacklist) {
 
 VALUE initialize(int argc, VALUE *argv, VALUE self) {
   Rotoscope *config = get_config(self);
-  VALUE output_path, blacklist, flatten;
+  VALUE output_path, blacklist;
 
-  rb_scan_args(argc, argv, "12", &output_path, &blacklist, &flatten);
+  rb_scan_args(argc, argv, "11", &output_path, &blacklist);
   Check_Type(output_path, T_STRING);
 
   if (!NIL_P(blacklist)) {
     copy_blacklist(config, blacklist);
   }
 
-  config->flatten_output = RTEST(flatten);
   config->log_path = output_path;
   config->log = fopen(StringValueCStr(config->log_path), "w");
 
@@ -306,10 +293,7 @@ VALUE initialize(int argc, VALUE *argv, VALUE self) {
     exit(1);
   }
 
-  if (config->flatten_output)
-    write_csv_header(config->log, RS_FLATTENED_CSV_HEADER);
-  else
-    write_csv_header(config->log, RS_CSV_HEADER);
+  write_csv_header(config->log, RS_CSV_HEADER);
 
   rs_stack_init(&config->stack, STACK_CAPACITY);
   config->call_memo = NULL;
@@ -350,6 +334,7 @@ VALUE rotoscope_mark(int argc, VALUE *argv, VALUE self) {
   Rotoscope *config = get_config(self);
   if (config->log != NULL && !in_fork(config)) {
     rs_strmemo_free(config->call_memo);
+    config->call_memo = NULL;
     fprintf(config->log, "--- %s\n", StringValueCStr(str));
   }
   return Qnil;
