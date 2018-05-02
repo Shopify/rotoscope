@@ -51,6 +51,7 @@ typedef struct {
   FILE *log;
   VALUE log_path;
   VALUE tracepoint;
+  const char *header;
   const char **blacklist;
   unsigned long blacklist_size;
   bool flatten_output;
