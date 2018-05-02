@@ -181,8 +181,7 @@ static void event_hook(VALUE tpval, void *data) {
   if (blacklisted) return;
 
   rs_stack_frame_t *stack_frame = rs_stack_peek(&config->stack);
-  rs_stack_frame_t *caller_frame =
-      rs_stack_below(&config->stack, stack_frame);
+  rs_stack_frame_t *caller_frame = rs_stack_below(&config->stack, stack_frame);
   log_trace_event_with_caller(config->log, stack_frame, caller_frame,
                               &config->call_memo);
 }
