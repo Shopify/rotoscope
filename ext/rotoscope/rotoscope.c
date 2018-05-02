@@ -21,8 +21,8 @@ static unsigned long gettid() {
   return NUM2ULONG(rb_obj_id(rb_thread_current()));
 }
 
-static int write_csv_header(FILE *log, const char *header) {
-  return fprintf(log, "%s\n", header);
+static int write_csv_header(Rotoscope *config) {
+  return fprintf(config->log, "%s\n", config->header);
 }
 
 static const char *evflag2name(rb_event_flag_t evflag) {
@@ -287,9 +287,9 @@ void copy_blacklist(Rotoscope *config, VALUE blacklist) {
 
 VALUE initialize(int argc, VALUE *argv, VALUE self) {
   Rotoscope *config = get_config(self);
-  VALUE output_path, blacklist, flatten;
+  VALUE output_path, blacklist, flatten, header;
 
-  rb_scan_args(argc, argv, "12", &output_path, &blacklist, &flatten);
+  rb_scan_args(argc, argv, "13", &output_path, &blacklist, &flatten, &header);
   Check_Type(output_path, T_STRING);
 
   if (!NIL_P(blacklist)) {
@@ -300,16 +300,19 @@ VALUE initialize(int argc, VALUE *argv, VALUE self) {
   config->log_path = output_path;
   config->log = fopen(StringValueCStr(config->log_path), "w");
 
+  if (NIL_P(header)) {
+    config->header = config->flatten_output ? RS_FLATTENED_CSV_HEADER : RS_CSV_HEADER;
+  } else {
+    config->header = StringValueCStr(header);
+  }
+
   if (config->log == NULL) {
     fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n",
             StringValueCStr(config->log_path), strerror(errno));
     exit(1);
   }
 
-  if (config->flatten_output)
-    write_csv_header(config->log, RS_FLATTENED_CSV_HEADER);
-  else
-    write_csv_header(config->log, RS_CSV_HEADER);
+  write_csv_header(config);
 
   rs_stack_init(&config->stack, STACK_CAPACITY);
   config->call_memo = NULL;

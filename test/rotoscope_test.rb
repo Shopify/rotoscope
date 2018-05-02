@@ -566,6 +566,13 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_custom_headers
+    header = 'event,entity_name,path,line,method_name,method_level'
+    contents = rotoscope_trace(header: header) { Example.new.normal_method }
+
+    assert_equal header.split(','), CSV.parse(contents, headers: true).headers
+  end
+
   private
 
   def parse_and_normalize(csv_string)
@@ -585,8 +592,8 @@ class RotoscopeTest < MiniTest::Test
     assert_equal csv_string.scan(/\Acall/).size, csv_string.scan(/\Areturn/).size
   end
 
-  def rotoscope_trace(blacklist: [], flatten: false)
-    Rotoscope.trace(@logfile, blacklist: blacklist, flatten: flatten) { |rotoscope| yield rotoscope }
+  def rotoscope_trace(blacklist: [], flatten: false, header: nil)
+    Rotoscope.trace(@logfile, blacklist: blacklist, flatten: flatten, header: header) { |rotoscope| yield rotoscope }
     File.read(@logfile)
   end
 
