@@ -38,8 +38,7 @@ typedef enum {
 } rs_state;
 
 typedef struct {
-  FILE *log;
-  VALUE log_path;
+  VALUE log;
   VALUE tracepoint;
   const char **blacklist;
   unsigned long blacklist_size;

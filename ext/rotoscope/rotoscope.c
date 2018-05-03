@@ -1,6 +1,7 @@
 #include <errno.h>
 #include <ruby.h>
 #include <ruby/debug.h>
+#include <ruby/io.h>
 #include <ruby/intern.h>
 #include <ruby/version.h>
 #include <stdbool.h>
@@ -15,14 +16,10 @@
 
 VALUE cRotoscope, cTracePoint;
 ID id_initialize, id_gsub;
-VALUE str_quote, str_escaped_quote;
+VALUE str_quote, str_escaped_quote, str_header;
 
 static unsigned long gettid() {
   return NUM2ULONG(rb_obj_id(rb_thread_current()));
-}
-
-static int write_csv_header(FILE *log, const char *header) {
-  return fprintf(log, "%s\n", header);
 }
 
 static const char *evflag2name(rb_event_flag_t evflag) {
@@ -128,7 +125,7 @@ VALUE escape_csv_string(VALUE string) {
 }
 
 static void log_trace_event_with_caller(VALUE output_buffer,
-                                        FILE *stream,
+                                        VALUE io,
                                         rs_stack_frame_t *stack_frame,
                                         rs_stack_frame_t *caller_frame,
                                         rs_strmemo_t **call_memo) {
@@ -137,11 +134,13 @@ static void log_trace_event_with_caller(VALUE output_buffer,
       escape_csv_string(caller_frame->tp.method_name);
 
   while (true) {
+    rb_str_modify(output_buffer);
     long out_len = snprintf(RSTRING_PTR(output_buffer), rb_str_capacity(output_buffer), RS_CSV_FORMAT "\n",
                    RS_CSV_VALUES(&stack_frame->tp, &caller_frame->tp,
                            escaped_method_name, escaped_caller_method_name));
 
     if (out_len < RSTRING_LEN(output_buffer)) {
+      rb_str_set_len(output_buffer, out_len);
       break;
     }
     rb_str_resize(output_buffer, out_len + 1);
@@ -151,7 +150,7 @@ static void log_trace_event_with_caller(VALUE output_buffer,
   RB_GC_GUARD(escaped_caller_method_name);
 
   if (rs_strmemo_uniq(call_memo, RSTRING_PTR(output_buffer))) {
-    fputs(RSTRING_PTR(output_buffer), stream);
+    rb_io_write(io, output_buffer);
   }
 }
 
@@ -196,36 +195,29 @@ static void event_hook(VALUE tpval, void *data) {
 }
 
 static void close_log_handle(Rotoscope *config) {
-  if (config->log) {
-    // Stop tracing so the event hook isn't called with a NULL log
-    if (config->state == RS_TRACING) {
-      // During process cleanup, event hooks are removed and tracepoint may have
-      // already have been GCed, so we need a sanity check before disabling the
-      // tracepoint.
-      if (RB_TYPE_P(config->tracepoint, T_DATA) &&
-          CLASS_OF(config->tracepoint) == cTracePoint) {
-        rb_tracepoint_disable(config->tracepoint);
-      }
+  // Stop tracing so the event hook isn't called with a NULL log
+  if (config->state == RS_TRACING) {
+    // During process cleanup, event hooks are removed and tracepoint may have
+    // already have been GCed, so we need a sanity check before disabling the
+    // tracepoint.
+    if (RB_TYPE_P(config->tracepoint, T_DATA) &&
+        CLASS_OF(config->tracepoint) == cTracePoint) {
+      rb_tracepoint_disable(config->tracepoint);
     }
-
-    if (in_fork(config)) {
-      close(fileno(config->log));
-    } else {
-      fclose(config->log);
-    }
-    config->log = NULL;
   }
 }
 
 static void rs_gc_mark(Rotoscope *config) {
-  rb_gc_mark(config->log_path);
+  rb_gc_mark(config->log);
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->output_buffer);
   rs_stack_mark(&config->stack);
 }
 
 void rs_dealloc(Rotoscope *config) {
-  close_log_handle(config);
+  if (config->state != RS_CLOSED) {
+    close_log_handle(config);
+  }
   rs_stack_free(&config->stack);
   rs_strmemo_free(config->call_memo);
   xfree(config->blacklist);
@@ -236,7 +228,7 @@ static VALUE rs_alloc(VALUE klass) {
   Rotoscope *config;
   VALUE self =
       Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
-  config->log_path = Qnil;
+  config->log = Qnil;
   config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
                                          event_hook, (void *)config);
   config->pid = getpid();
@@ -280,25 +272,18 @@ void copy_blacklist(Rotoscope *config, VALUE blacklist) {
 
 VALUE initialize(int argc, VALUE *argv, VALUE self) {
   Rotoscope *config = get_config(self);
-  VALUE output_path, blacklist;
+  VALUE output, blacklist;
 
-  rb_scan_args(argc, argv, "11", &output_path, &blacklist);
-  Check_Type(output_path, T_STRING);
+  rb_scan_args(argc, argv, "11", &output, &blacklist);
+  output = rb_io_check_io(output);
 
   if (!NIL_P(blacklist)) {
     copy_blacklist(config, blacklist);
   }
 
-  config->log_path = output_path;
-  config->log = fopen(StringValueCStr(config->log_path), "w");
+  config->log = output;
 
-  if (config->log == NULL) {
-    fprintf(stderr, "\nERROR: Failed to open file handle at %s (%s)\n",
-            StringValueCStr(config->log_path), strerror(errno));
-    exit(1);
-  }
-
-  write_csv_header(config->log, RS_CSV_HEADER);
+  rb_io_write(config->log, str_header);
 
   rs_stack_init(&config->stack, STACK_CAPACITY);
   config->call_memo = NULL;
@@ -325,11 +310,6 @@ VALUE rotoscope_stop_trace(VALUE self) {
   return Qnil;
 }
 
-VALUE rotoscope_log_path(VALUE self) {
-  Rotoscope *config = get_config(self);
-  return config->log_path;
-}
-
 VALUE rotoscope_mark(int argc, VALUE *argv, VALUE self) {
   VALUE str;
   rb_scan_args(argc, argv, "01", &str);
@@ -338,10 +318,12 @@ VALUE rotoscope_mark(int argc, VALUE *argv, VALUE self) {
   Check_Type(str, T_STRING);
 
   Rotoscope *config = get_config(self);
-  if (config->log != NULL && !in_fork(config)) {
+  if (config->state != RS_CLOSED && !in_fork(config)) {
     rs_strmemo_free(config->call_memo);
     config->call_memo = NULL;
-    fprintf(config->log, "--- %s\n", StringValueCStr(str));
+    rb_io_write(config->log, rb_str_new_cstr("--- "));
+    rb_io_write(config->log, str);
+    rb_io_write(config->log, rb_str_new_cstr("\n"));
   }
   return Qnil;
 }
@@ -352,8 +334,16 @@ VALUE rotoscope_close(VALUE self) {
     return Qtrue;
   }
   close_log_handle(config);
+  if (!in_fork(config)) {
+    rb_io_close(config->log);
+  }
   config->state = RS_CLOSED;
   return Qtrue;
+}
+
+VALUE rotoscope_io(VALUE self) {
+  Rotoscope *config = get_config(self);
+  return config->log;
 }
 
 VALUE rotoscope_trace(VALUE self) {
@@ -384,18 +374,20 @@ void Init_rotoscope(void) {
   str_escaped_quote = rb_str_new_literal("\"\"");
   rb_global_variable(&str_escaped_quote);
 
+  str_header = rb_str_new_literal(RS_CSV_HEADER "\n");
+  rb_global_variable(&str_header);
+
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
   rb_define_method(cRotoscope, "initialize", initialize, -1);
   rb_define_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
   rb_define_method(cRotoscope, "mark", (VALUE(*)(ANYARGS))rotoscope_mark, -1);
   rb_define_method(cRotoscope, "close", (VALUE(*)(ANYARGS))rotoscope_close, 0);
+  rb_define_method(cRotoscope, "io", rotoscope_io, 0);
   rb_define_method(cRotoscope, "start_trace",
                    (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
   rb_define_method(cRotoscope, "stop_trace",
                    (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
-  rb_define_method(cRotoscope, "log_path",
-                   (VALUE(*)(ANYARGS))rotoscope_log_path, 0);
   rb_define_method(cRotoscope, "state", (VALUE(*)(ANYARGS))rotoscope_state, 0);
 
   init_callsite();

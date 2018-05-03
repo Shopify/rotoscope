@@ -6,8 +6,12 @@ require 'csv'
 
 class Rotoscope
   class << self
-    def new(output_path, blacklist: [])
-      super(output_path, blacklist)
+    def new(output_path, blacklist: [], &block)
+      output = File.open(output_path, 'w')
+      prevent_flush_from_finalizer_in_fork(output)
+      obj = super(output, blacklist)
+      obj.log_path = output_path
+      obj
     end
 
     def trace(dest, blacklist: [], &block)
@@ -20,6 +24,17 @@ class Rotoscope
     end
 
     private
+
+    def prevent_flush_from_finalizer_in_fork(io)
+      pid = Process.pid
+      finalizer = lambda do |_|
+        next if Process.pid == pid
+        # close the file descriptor from another IO object so
+        # buffered writes aren't flushed
+        IO.for_fd(io.fileno).close
+      end
+      ObjectSpace.define_finalizer(io, finalizer)
+    end
 
     def with_temp_file(name)
       temp_file = Tempfile.new(name)
@@ -52,6 +67,8 @@ class Rotoscope
       rs.close if rs
     end
   end
+
+  attr_accessor :log_path
 
   def closed?
     state == :closed
