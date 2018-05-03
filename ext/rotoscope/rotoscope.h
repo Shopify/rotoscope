@@ -48,6 +48,7 @@ typedef struct {
   rs_state state;
   rs_stack_t stack;
   rs_strmemo_t *call_memo;
+  VALUE output_buffer;
 } Rotoscope;
 
 typedef struct {

@@ -8,7 +8,7 @@ typedef struct {
   UT_hash_handle hh;
 } rs_strmemo_t;
 
-bool rs_strmemo_uniq(rs_strmemo_t **calls, unsigned char *entry);
+bool rs_strmemo_uniq(rs_strmemo_t **calls, char *entry);
 void rs_strmemo_free(rs_strmemo_t *calls);
 
 #endif

@@ -127,22 +127,31 @@ VALUE escape_csv_string(VALUE string) {
   return rb_funcall(string, id_gsub, 2, str_quote, str_escaped_quote);
 }
 
-unsigned char output_buffer[LOG_BUFFER_SIZE];
-static void log_trace_event_with_caller(FILE *stream,
+static void log_trace_event_with_caller(VALUE output_buffer,
+                                        FILE *stream,
                                         rs_stack_frame_t *stack_frame,
                                         rs_stack_frame_t *caller_frame,
                                         rs_strmemo_t **call_memo) {
   VALUE escaped_method_name = escape_csv_string(stack_frame->tp.method_name);
   VALUE escaped_caller_method_name =
       escape_csv_string(caller_frame->tp.method_name);
-  snprintf((char *)output_buffer, LOG_BUFFER_SIZE, RS_CSV_FORMAT "\n",
-           RS_CSV_VALUES(&stack_frame->tp, &caller_frame->tp,
-                         escaped_method_name, escaped_caller_method_name));
+
+  while (true) {
+    long out_len = snprintf(RSTRING_PTR(output_buffer), rb_str_capacity(output_buffer), RS_CSV_FORMAT "\n",
+                   RS_CSV_VALUES(&stack_frame->tp, &caller_frame->tp,
+                           escaped_method_name, escaped_caller_method_name));
+
+    if (out_len < RSTRING_LEN(output_buffer)) {
+      break;
+    }
+    rb_str_resize(output_buffer, out_len + 1);
+  }
+
   RB_GC_GUARD(escaped_method_name);
   RB_GC_GUARD(escaped_caller_method_name);
 
-  if (rs_strmemo_uniq(call_memo, output_buffer)) {
-    fputs((char *)output_buffer, stream);
+  if (rs_strmemo_uniq(call_memo, RSTRING_PTR(output_buffer))) {
+    fputs(RSTRING_PTR(output_buffer), stream);
   }
 }
 
@@ -182,7 +191,7 @@ static void event_hook(VALUE tpval, void *data) {
 
   rs_stack_frame_t *stack_frame = rs_stack_peek(&config->stack);
   rs_stack_frame_t *caller_frame = rs_stack_below(&config->stack, stack_frame);
-  log_trace_event_with_caller(config->log, stack_frame, caller_frame,
+  log_trace_event_with_caller(config->output_buffer, config->log, stack_frame, caller_frame,
                               &config->call_memo);
 }
 
@@ -211,6 +220,7 @@ static void close_log_handle(Rotoscope *config) {
 static void rs_gc_mark(Rotoscope *config) {
   rb_gc_mark(config->log_path);
   rb_gc_mark(config->tracepoint);
+  rb_gc_mark(config->output_buffer);
   rs_stack_mark(&config->stack);
 }
 
@@ -231,6 +241,7 @@ static VALUE rs_alloc(VALUE klass) {
                                          event_hook, (void *)config);
   config->pid = getpid();
   config->tid = gettid();
+  config->output_buffer = Qnil;
   return self;
 }
 
@@ -292,6 +303,7 @@ VALUE initialize(int argc, VALUE *argv, VALUE self) {
   rs_stack_init(&config->stack, STACK_CAPACITY);
   config->call_memo = NULL;
   config->state = RS_OPEN;
+  config->output_buffer = rb_str_buf_new(LOG_BUFFER_SIZE);
   return self;
 }
 
