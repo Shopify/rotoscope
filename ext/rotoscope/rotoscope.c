@@ -15,7 +15,7 @@
 #include "tracepoint.h"
 
 VALUE cRotoscope, cTracePoint;
-ID id_initialize, id_gsub;
+ID id_initialize, id_gsub, id_close;
 VALUE str_quote, str_escaped_quote, str_header;
 
 static unsigned long gettid() {
@@ -290,7 +290,6 @@ VALUE initialize(int argc, VALUE *argv, VALUE self) {
   VALUE output, blacklist;
 
   rb_scan_args(argc, argv, "11", &output, &blacklist);
-  output = rb_io_check_io(output);
 
   if (!NIL_P(blacklist)) {
     copy_blacklist(config, blacklist);
@@ -351,7 +350,7 @@ VALUE rotoscope_close(VALUE self) {
   rb_tracepoint_disable(config->tracepoint);
   config->state = RS_OPEN;
   if (!in_fork(config)) {
-    rb_io_close(config->log);
+    rb_funcall(config->log, id_close, 0);
   }
   config->state = RS_CLOSED;
   return Qtrue;
@@ -384,6 +383,7 @@ void Init_rotoscope(void) {
 
   id_initialize = rb_intern("initialize");
   id_gsub = rb_intern("gsub");
+  id_close = rb_intern("close");
 
   str_quote = rb_str_new_literal("\"");
   rb_global_variable(&str_quote);
