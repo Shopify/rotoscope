@@ -38,6 +38,7 @@ typedef enum {
 } rs_state;
 
 typedef struct {
+  VALUE self;
   VALUE log;
   VALUE tracepoint;
   const char **blacklist;

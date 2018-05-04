@@ -117,6 +117,17 @@ static rs_tracepoint_t extract_full_tracevals(rb_trace_arg_t *trace_arg,
 
 static bool in_fork(Rotoscope *config) { return config->pid != getpid(); }
 
+// The GC sweep step will turn objects with finalizers (e.g. rs_dealloc)
+// to zombie objects until their finalizer is run. In this state, any
+// ruby objects in the Rotoscope struct may have already been collected
+// so they can't safely be used. If tracing isn't stopped before the
+// Rotoscope object has been garbage collected, then we still may receive
+// trace events for method calls in finalizers that run before the one
+// for the Rotoscope object.
+bool rotoscope_marked_for_garbage_collection(Rotoscope *config) {
+  return RB_BUILTIN_TYPE(config->self) == RUBY_T_ZOMBIE;
+}
+
 VALUE escape_csv_string(VALUE string) {
   if (!memchr(RSTRING_PTR(string), '"', RSTRING_LEN(string))) {
     return string;
@@ -154,8 +165,26 @@ static void log_trace_event_with_caller(VALUE output_buffer,
   }
 }
 
+static void stop_tracing_on_cleanup(Rotoscope *config) {
+  if (config->state == RS_TRACING) {
+    // During process cleanup, event hooks are removed and tracepoint may have
+    // already have been GCed, so we need a sanity check before disabling the
+    // tracepoint.
+    if (RB_TYPE_P(config->tracepoint, T_DATA) &&
+        CLASS_OF(config->tracepoint) == cTracePoint) {
+      rb_tracepoint_disable(config->tracepoint);
+    }
+    config->state = RS_OPEN;
+  }
+}
+
 static void event_hook(VALUE tpval, void *data) {
   Rotoscope *config = (Rotoscope *)data;
+
+  if (rotoscope_marked_for_garbage_collection(config)) {
+    stop_tracing_on_cleanup(config);
+    return;
+  }
 
   if (config->tid != gettid()) return;
   if (in_fork(config)) {
@@ -194,19 +223,6 @@ static void event_hook(VALUE tpval, void *data) {
                               &config->call_memo);
 }
 
-static void close_log_handle(Rotoscope *config) {
-  // Stop tracing so the event hook isn't called with a NULL log
-  if (config->state == RS_TRACING) {
-    // During process cleanup, event hooks are removed and tracepoint may have
-    // already have been GCed, so we need a sanity check before disabling the
-    // tracepoint.
-    if (RB_TYPE_P(config->tracepoint, T_DATA) &&
-        CLASS_OF(config->tracepoint) == cTracePoint) {
-      rb_tracepoint_disable(config->tracepoint);
-    }
-  }
-}
-
 static void rs_gc_mark(Rotoscope *config) {
   rb_gc_mark(config->log);
   rb_gc_mark(config->tracepoint);
@@ -215,9 +231,7 @@ static void rs_gc_mark(Rotoscope *config) {
 }
 
 void rs_dealloc(Rotoscope *config) {
-  if (config->state != RS_CLOSED) {
-    close_log_handle(config);
-  }
+  stop_tracing_on_cleanup(config);
   rs_stack_free(&config->stack);
   rs_strmemo_free(config->call_memo);
   xfree(config->blacklist);
@@ -228,6 +242,7 @@ static VALUE rs_alloc(VALUE klass) {
   Rotoscope *config;
   VALUE self =
       Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
+  config->self = self;
   config->log = Qnil;
   config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
                                          event_hook, (void *)config);
@@ -333,7 +348,8 @@ VALUE rotoscope_close(VALUE self) {
   if (config->state == RS_CLOSED) {
     return Qtrue;
   }
-  close_log_handle(config);
+  rb_tracepoint_disable(config->tracepoint);
+  config->state = RS_OPEN;
   if (!in_fork(config)) {
     rb_io_close(config->log);
   }
