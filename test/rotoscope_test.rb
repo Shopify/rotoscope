@@ -267,15 +267,21 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_trace_disabled_on_close
+    mark_err = nil
     contents = rotoscope_trace do |rotoscope|
       Example.singleton_method
       rotoscope.close
-      rotoscope.mark
+      begin
+        rotoscope.mark
+      rescue IOError => err
+        mark_err = err
+      end
       Example.singleton_method
     end
     assert_equal [
       { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
     ], parse_and_normalize(contents)
+    assert_equal "closed stream", mark_err.message
   end
 
   def test_trace_flatten

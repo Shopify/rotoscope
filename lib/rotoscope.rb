@@ -40,6 +40,18 @@ class Rotoscope
 
   attr_accessor :log_path
 
+  def mark(message = "")
+    state = self.state
+    if state == :tracing
+      # stop tracing to avoid logging these io method calls
+      stop_trace
+    end
+    io.write("--- ")
+    io.puts(message)
+  ensure
+    start_trace if state == :tracing
+  end
+
   def closed?
     state == :closed
   end
