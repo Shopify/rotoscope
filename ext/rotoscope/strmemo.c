@@ -11,9 +11,9 @@ static unsigned long hash_djb2(unsigned char *str) {
   return hash;
 }
 
-bool rs_strmemo_uniq(rs_strmemo_t **calls, unsigned char *entry) {
+bool rs_strmemo_uniq(rs_strmemo_t **calls, char *entry) {
   rs_strmemo_t *c = NULL;
-  unsigned long hashkey = hash_djb2(entry);
+  unsigned long hashkey = hash_djb2((unsigned char *)entry);
 
   HASH_FIND_INT(*calls, &hashkey, c);
   if (c != NULL) return false;

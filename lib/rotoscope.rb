@@ -1,57 +1,44 @@
 # frozen_string_literal: true
 require 'rotoscope/rotoscope'
-require 'fileutils'
-require 'tempfile'
 require 'csv'
 
 class Rotoscope
   class << self
-    def new(output_path, blacklist: [])
-      super(output_path, blacklist)
+    def new(output, blacklist: [])
+      if output.is_a?(String)
+        io = File.open(output, 'w')
+        prevent_flush_from_finalizer_in_fork(io)
+        obj = super(io, blacklist)
+        obj.log_path = output
+        obj
+      else
+        super(output, blacklist)
+      end
     end
 
     def trace(dest, blacklist: [], &block)
-      config = { blacklist: blacklist }
-      if dest.is_a?(String)
-        event_trace(dest, config, &block)
-      else
-        io_event_trace(dest, config, &block)
-      end
+      rs = new(dest, blacklist: blacklist)
+      rs.trace { yield rs }
+      rs
+    ensure
+      rs.close if rs && dest.is_a?(String)
     end
 
     private
 
-    def with_temp_file(name)
-      temp_file = Tempfile.new(name)
-      yield temp_file
-    ensure
-      temp_file.close! if temp_file
-    end
-
-    def temp_event_trace(config, block)
-      with_temp_file("rotoscope_output") do |temp_file|
-        rs = event_trace(temp_file.path, config, &block)
-        yield rs
-        rs
+    def prevent_flush_from_finalizer_in_fork(io)
+      pid = Process.pid
+      finalizer = lambda do |_|
+        next if Process.pid == pid
+        # close the file descriptor from another IO object so
+        # buffered writes aren't flushed
+        IO.for_fd(io.fileno).close
       end
-    end
-
-    def io_event_trace(dest_io, config, &block)
-      temp_event_trace(config, block) do |rs|
-        File.open(rs.log_path) do |rs_file|
-          IO.copy_stream(rs_file, dest_io)
-        end
-      end
-    end
-
-    def event_trace(dest_path, config)
-      rs = Rotoscope.new(dest_path, blacklist: config[:blacklist])
-      rs.trace { yield rs }
-      rs
-    ensure
-      rs.close if rs
+      ObjectSpace.define_finalizer(io, finalizer)
     end
   end
+
+  attr_accessor :log_path
 
   def closed?
     state == :closed

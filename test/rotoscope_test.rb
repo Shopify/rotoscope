@@ -160,6 +160,7 @@ class RotoscopeTest < MiniTest::Test
     rs.start_trace
     Example.new.normal_method
     rs.stop_trace
+    rs.io.flush
     rs.close
     contents = File.read(@logfile)
 
