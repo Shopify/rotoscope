@@ -5,6 +5,9 @@ require 'csv'
 class Rotoscope
   class << self
     def new(output, blacklist: [])
+      unless blacklist.is_a?(Regexp)
+        blacklist = Regexp.union(blacklist)
+      end
       if output.is_a?(String)
         io = File.open(output, 'w')
         prevent_flush_from_finalizer_in_fork(io)

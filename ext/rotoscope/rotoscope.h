@@ -40,8 +40,7 @@ typedef struct {
   VALUE self;
   VALUE log;
   VALUE tracepoint;
-  const char **blacklist;
-  unsigned long blacklist_size;
+  VALUE blacklist;
   pid_t pid;
   unsigned long tid;
   rs_state state;
