@@ -16,7 +16,7 @@ class Rotoscope
       end
     end
 
-    def trace(dest, blacklist: [], &block)
+    def trace(dest, blacklist: [])
       rs = new(dest, blacklist: blacklist)
       rs.trace { yield rs }
       rs

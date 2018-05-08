@@ -1,8 +1,8 @@
 #include <errno.h>
 #include <ruby.h>
 #include <ruby/debug.h>
-#include <ruby/io.h>
 #include <ruby/intern.h>
+#include <ruby/io.h>
 #include <ruby/version.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -135,8 +135,7 @@ VALUE escape_csv_string(VALUE string) {
   return rb_funcall(string, id_gsub, 2, str_quote, str_escaped_quote);
 }
 
-static void log_trace_event_with_caller(VALUE output_buffer,
-                                        VALUE io,
+static void log_trace_event_with_caller(VALUE output_buffer, VALUE io,
                                         rs_stack_frame_t *stack_frame,
                                         rs_stack_frame_t *caller_frame,
                                         rs_strmemo_t **call_memo) {
@@ -146,9 +145,11 @@ static void log_trace_event_with_caller(VALUE output_buffer,
 
   while (true) {
     rb_str_modify(output_buffer);
-    long out_len = snprintf(RSTRING_PTR(output_buffer), rb_str_capacity(output_buffer), RS_CSV_FORMAT "\n",
-                   RS_CSV_VALUES(&stack_frame->tp, &caller_frame->tp,
-                           escaped_method_name, escaped_caller_method_name));
+    long out_len = snprintf(
+        RSTRING_PTR(output_buffer), rb_str_capacity(output_buffer),
+        RS_CSV_FORMAT "\n",
+        RS_CSV_VALUES(&stack_frame->tp, &caller_frame->tp, escaped_method_name,
+                      escaped_caller_method_name));
 
     if (out_len < RSTRING_LEN(output_buffer)) {
       rb_str_set_len(output_buffer, out_len);
@@ -219,8 +220,8 @@ static void event_hook(VALUE tpval, void *data) {
 
   rs_stack_frame_t *stack_frame = rs_stack_peek(&config->stack);
   rs_stack_frame_t *caller_frame = rs_stack_below(&config->stack, stack_frame);
-  log_trace_event_with_caller(config->output_buffer, config->log, stack_frame, caller_frame,
-                              &config->call_memo);
+  log_trace_event_with_caller(config->output_buffer, config->log, stack_frame,
+                              caller_frame, &config->call_memo);
 }
 
 static void rs_gc_mark(Rotoscope *config) {
