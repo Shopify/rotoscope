@@ -141,20 +141,6 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
-  def test_flatten_removes_duplicates
-    contents = rotoscope_trace do
-      e = Example.new
-      10.times { e.normal_method }
-    end
-
-    assert_equal [
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "new", caller_method_level: "class" },
-      { entity: "Fixnum", method_name: "times", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Fixnum", caller_method_name: "times", caller_method_level: "instance" },
-    ], parse_and_normalize(contents)
-  end
-
   def test_start_trace_and_stop_trace
     rs = Rotoscope.new(@logfile)
     rs.start_trace
@@ -267,15 +253,21 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_trace_disabled_on_close
+    mark_err = nil
     contents = rotoscope_trace do |rotoscope|
       Example.singleton_method
       rotoscope.close
-      rotoscope.mark
+      begin
+        rotoscope.mark
+      rescue IOError => err
+        mark_err = err
+      end
       Example.singleton_method
     end
     assert_equal [
       { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
     ], parse_and_normalize(contents)
+    assert_equal "closed stream", mark_err.message
   end
 
   def test_trace_flatten
