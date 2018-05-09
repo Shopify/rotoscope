@@ -14,7 +14,7 @@
 #include "tracepoint.h"
 
 VALUE cRotoscope, cTracePoint;
-ID id_initialize, id_gsub, id_close;
+ID id_initialize, id_gsub, id_close, id_match_p;
 VALUE str_quote, str_escaped_quote, str_header;
 
 static unsigned long gettid() {
@@ -32,14 +32,6 @@ static const char *evflag2name(rb_event_flag_t evflag) {
     default:
       return "unknown";
   }
-}
-
-static bool rejected_path(VALUE path, Rotoscope *config) {
-  for (unsigned long i = 0; i < config->blacklist_size; i++) {
-    if (strstr(StringValueCStr(path), config->blacklist[i])) return true;
-  }
-
-  return false;
 }
 
 static VALUE class_path(VALUE klass) {
@@ -206,7 +198,8 @@ static void event_hook(VALUE tpval, void *data) {
   }
 
   rs_callsite_t trace_path = tracearg_path(trace_arg);
-  bool blacklisted = rejected_path(trace_path.filepath, config);
+  bool blacklisted = rb_funcall(config->blacklist, id_match_p, 1,
+                                trace_path.filepath) == Qtrue;
 
   rs_tracepoint_t trace = extract_full_tracevals(trace_arg, &trace_path);
 
@@ -224,13 +217,13 @@ static void rs_gc_mark(Rotoscope *config) {
   rb_gc_mark(config->log);
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->output_buffer);
+  rb_gc_mark(config->blacklist);
   rs_stack_mark(&config->stack);
 }
 
 void rs_dealloc(Rotoscope *config) {
   stop_tracing_on_cleanup(config);
   rs_stack_free(&config->stack);
-  xfree(config->blacklist);
   xfree(config);
 }
 
@@ -254,43 +247,15 @@ static Rotoscope *get_config(VALUE self) {
   return config;
 }
 
-void copy_blacklist(Rotoscope *config, VALUE blacklist) {
-  Check_Type(blacklist, T_ARRAY);
-
-  size_t blacklist_malloc_size =
-      RARRAY_LEN(blacklist) * sizeof(*config->blacklist);
-
-  for (long i = 0; i < RARRAY_LEN(blacklist); i++) {
-    VALUE ruby_string = RARRAY_AREF(blacklist, i);
-    Check_Type(ruby_string, T_STRING);
-    blacklist_malloc_size += RSTRING_LEN(ruby_string) + 1;
-  }
-
-  config->blacklist = ruby_xmalloc(blacklist_malloc_size);
-  config->blacklist_size = RARRAY_LEN(blacklist);
-  char *str = (char *)(config->blacklist + config->blacklist_size);
-
-  for (unsigned long i = 0; i < config->blacklist_size; i++) {
-    VALUE ruby_string = RARRAY_AREF(blacklist, i);
-
-    config->blacklist[i] = str;
-    memcpy(str, RSTRING_PTR(ruby_string), RSTRING_LEN(ruby_string));
-    str += RSTRING_LEN(ruby_string);
-    *str = '\0';
-    str++;
-  }
-}
-
 VALUE initialize(int argc, VALUE *argv, VALUE self) {
   Rotoscope *config = get_config(self);
   VALUE output, blacklist;
 
   rb_scan_args(argc, argv, "11", &output, &blacklist);
 
-  if (!NIL_P(blacklist)) {
-    copy_blacklist(config, blacklist);
-  }
+  Check_Type(blacklist, RUBY_T_REGEXP);
 
+  config->blacklist = blacklist;
   config->log = output;
 
   rb_io_write(config->log, str_header);
@@ -361,6 +326,7 @@ void Init_rotoscope(void) {
   id_initialize = rb_intern("initialize");
   id_gsub = rb_intern("gsub");
   id_close = rb_intern("close");
+  id_match_p = rb_intern("match?");
 
   str_quote = rb_str_new_literal("\"");
   rb_global_variable(&str_quote);
