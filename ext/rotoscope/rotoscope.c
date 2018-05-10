@@ -14,9 +14,7 @@
 #include "stack.h"
 
 VALUE cRotoscope, cTracePoint;
-ID id_initialize, id_gsub, id_close, id_match_p;
-VALUE str_quote, str_escaped_quote, str_header;
-VALUE str_unknown_class_name, str_unknown_method_name;
+ID id_initialize, id_log_call;
 
 static unsigned long gettid() {
   return NUM2ULONG(rb_obj_id(rb_thread_current()));
@@ -82,64 +80,8 @@ bool rotoscope_marked_for_garbage_collection(Rotoscope *config) {
   return RB_BUILTIN_TYPE(config->self) == RUBY_T_ZOMBIE;
 }
 
-VALUE escape_csv_string(VALUE string) {
-  if (!memchr(RSTRING_PTR(string), '"', RSTRING_LEN(string))) {
-    return string;
-  }
-  return rb_funcall(string, id_gsub, 2, str_quote, str_escaped_quote);
-}
-
-typedef struct {
-  VALUE class_name;
-  VALUE name;
-  const char *level;
-} rs_method_log_fields_t;
-
-static rs_method_log_fields_t method_log_fields(rs_method_desc_t *method) {
-  if (method == NULL) {
-    return (rs_method_log_fields_t){
-        .class_name = str_unknown_class_name,
-        .name = str_unknown_method_name,
-        .level = "<UNKNOWN>",
-    };
-  } else {
-    return (rs_method_log_fields_t){
-        .class_name = method->class_name,
-        .name = escape_csv_string(rb_sym2str(method->id)),
-        .level = method->singleton_p ? CLASS_METHOD : INSTANCE_METHOD,
-    };
-  }
-}
-
-static void log_call(VALUE output_buffer, VALUE io, rs_callsite_t *call_site,
-                     rs_method_desc_t *method_desc,
-                     rs_method_desc_t *caller_method) {
-  rs_method_log_fields_t method_fields = method_log_fields(method_desc);
-  rs_method_log_fields_t caller_method_fields =
-      method_log_fields(caller_method);
-
-  while (true) {
-    rb_str_modify(output_buffer);
-    long out_len =
-        snprintf(RSTRING_PTR(output_buffer), rb_str_capacity(output_buffer),
-                 RS_CSV_FORMAT "\n",
-                 RS_CSV_VALUES(method_fields, caller_method_fields, call_site));
-
-    if (out_len < RSTRING_LEN(output_buffer)) {
-      rb_str_set_len(output_buffer, out_len);
-      break;
-    }
-    rb_str_resize(output_buffer, out_len + 1);
-  }
-
-  RB_GC_GUARD(method_fields.name);
-  RB_GC_GUARD(caller_method_fields.name);
-
-  rb_io_write(io, output_buffer);
-}
-
 static void stop_tracing_on_cleanup(Rotoscope *config) {
-  if (config->state == RS_TRACING) {
+  if (config->tracing) {
     // During process cleanup, event hooks are removed and tracepoint may have
     // already have been GCed, so we need a sanity check before disabling the
     // tracepoint.
@@ -147,7 +89,7 @@ static void stop_tracing_on_cleanup(Rotoscope *config) {
         CLASS_OF(config->tracepoint) == cTracePoint) {
       rb_tracepoint_disable(config->tracepoint);
     }
-    config->state = RS_OPEN;
+    config->tracing = false;
   }
 }
 
@@ -162,7 +104,7 @@ static void event_hook(VALUE tpval, void *data) {
   if (config->tid != gettid()) return;
   if (in_fork(config)) {
     rb_tracepoint_disable(config->tracepoint);
-    config->state = RS_OPEN;
+    config->tracing = false;
     return;
   }
 
@@ -181,29 +123,18 @@ static void event_hook(VALUE tpval, void *data) {
     return;
   }
 
-  rs_callsite_t call_site = tracearg_path(trace_arg);
+  config->callsite = tracearg_path(trace_arg);
 
-  rs_stack_frame_t *caller = rs_stack_peek(&config->stack);
+  config->caller = rs_stack_peek(&config->stack);
 
   rs_method_desc_t method_desc = called_method_desc(trace_arg);
   rs_stack_push(&config->stack, (rs_stack_frame_t){.method = method_desc});
 
-  bool blacklist =
-      rb_funcall(config->blacklist, id_match_p, 1, call_site.filepath) == Qtrue;
-  if (blacklist) {
-    return;
-  }
-
-  rs_method_desc_t *caller_method = caller ? &caller->method : NULL;
-  log_call(config->output_buffer, config->log, &call_site, &method_desc,
-           caller_method);
+  rb_funcall(config->self, id_log_call, 0);
 }
 
 static void rs_gc_mark(Rotoscope *config) {
-  rb_gc_mark(config->log);
   rb_gc_mark(config->tracepoint);
-  rb_gc_mark(config->output_buffer);
-  rb_gc_mark(config->blacklist);
   rs_stack_mark(&config->stack);
 }
 
@@ -218,12 +149,15 @@ static VALUE rs_alloc(VALUE klass) {
   VALUE self =
       Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
   config->self = self;
-  config->log = Qnil;
-  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
-                                         event_hook, (void *)config);
   config->pid = getpid();
   config->tid = gettid();
-  config->output_buffer = Qnil;
+  config->tracing = false;
+  config->caller = NULL;
+  config->callsite.filepath = Qnil;
+  config->callsite.lineno = 0;
+  rs_stack_init(&config->stack, STACK_CAPACITY);
+  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
+                                         event_hook, (void *)config);
   return self;
 }
 
@@ -233,29 +167,10 @@ static Rotoscope *get_config(VALUE self) {
   return config;
 }
 
-VALUE initialize(int argc, VALUE *argv, VALUE self) {
-  Rotoscope *config = get_config(self);
-  VALUE output, blacklist;
-
-  rb_scan_args(argc, argv, "11", &output, &blacklist);
-
-  Check_Type(blacklist, RUBY_T_REGEXP);
-
-  config->blacklist = blacklist;
-  config->log = output;
-
-  rb_io_write(config->log, str_header);
-
-  rs_stack_init(&config->stack, STACK_CAPACITY);
-  config->state = RS_OPEN;
-  config->output_buffer = rb_str_buf_new(LOG_BUFFER_SIZE);
-  return self;
-}
-
 VALUE rotoscope_start_trace(VALUE self) {
   Rotoscope *config = get_config(self);
   rb_tracepoint_enable(config->tracepoint);
-  config->state = RS_TRACING;
+  config->tracing = true;
   return Qnil;
 }
 
@@ -263,30 +178,11 @@ VALUE rotoscope_stop_trace(VALUE self) {
   Rotoscope *config = get_config(self);
   if (rb_tracepoint_enabled_p(config->tracepoint)) {
     rb_tracepoint_disable(config->tracepoint);
-    config->state = RS_OPEN;
+    config->tracing = false;
     rs_stack_reset(&config->stack);
   }
 
   return Qnil;
-}
-
-VALUE rotoscope_close(VALUE self) {
-  Rotoscope *config = get_config(self);
-  if (config->state == RS_CLOSED) {
-    return Qtrue;
-  }
-  rb_tracepoint_disable(config->tracepoint);
-  config->state = RS_OPEN;
-  if (!in_fork(config)) {
-    rb_funcall(config->log, id_close, 0);
-  }
-  config->state = RS_CLOSED;
-  return Qtrue;
-}
-
-VALUE rotoscope_io(VALUE self) {
-  Rotoscope *config = get_config(self);
-  return config->log;
 }
 
 VALUE rotoscope_trace(VALUE self) {
@@ -294,51 +190,99 @@ VALUE rotoscope_trace(VALUE self) {
   return rb_ensure(rb_yield, Qundef, rotoscope_stop_trace, self);
 }
 
-VALUE rotoscope_state(VALUE self) {
+VALUE rotoscope_tracing_p(VALUE self) {
   Rotoscope *config = get_config(self);
-  switch (config->state) {
-    case RS_OPEN:
-      return ID2SYM(rb_intern("open"));
-    case RS_TRACING:
-      return ID2SYM(rb_intern("tracing"));
-    default:
-      return ID2SYM(rb_intern("closed"));
+  return config->tracing ? Qtrue : Qfalse;
+}
+
+VALUE rotoscope_class_name(VALUE self) {
+  Rotoscope *config = get_config(self);
+  rs_stack_frame_t *call = rs_stack_peek(&config->stack);
+  if (call == NULL) {
+    return Qnil;
   }
+  return call->method.class_name;
+}
+
+VALUE rotoscope_method_name(VALUE self) {
+  Rotoscope *config = get_config(self);
+  rs_stack_frame_t *call = rs_stack_peek(&config->stack);
+  if (call == NULL) {
+    return Qnil;
+  }
+  return rb_sym2str(call->method.id);
+}
+
+VALUE rotoscope_singleton_method_p(VALUE self) {
+  Rotoscope *config = get_config(self);
+  rs_stack_frame_t *call = rs_stack_peek(&config->stack);
+  if (call == NULL) {
+    return Qnil;
+  }
+  return call->method.singleton_p ? Qtrue : Qfalse;
+}
+
+VALUE rotoscope_caller_class_name(VALUE self) {
+  Rotoscope *config = get_config(self);
+  if (config->caller == NULL) {
+    return Qnil;
+  }
+  return config->caller->method.class_name;
+}
+
+VALUE rotoscope_caller_method_name(VALUE self) {
+  Rotoscope *config = get_config(self);
+  if (config->caller == NULL) {
+    return Qnil;
+  }
+  return rb_sym2str(config->caller->method.id);
+}
+
+VALUE rotoscope_caller_singleton_method_p(VALUE self) {
+  Rotoscope *config = get_config(self);
+  if (config->caller == NULL) {
+    return Qnil;
+  }
+  return config->caller->method.singleton_p ? Qtrue : Qfalse;
+}
+
+VALUE rotoscope_caller_path(VALUE self) {
+  Rotoscope *config = get_config(self);
+  return config->callsite.filepath;
+}
+
+VALUE rotoscope_caller_lineno(VALUE self) {
+  Rotoscope *config = get_config(self);
+  return UINT2NUM(config->callsite.lineno);
 }
 
 void Init_rotoscope(void) {
   cTracePoint = rb_const_get(rb_cObject, rb_intern("TracePoint"));
 
   id_initialize = rb_intern("initialize");
-  id_gsub = rb_intern("gsub");
-  id_close = rb_intern("close");
-  id_match_p = rb_intern("match?");
-
-  str_quote = rb_str_new_literal("\"");
-  rb_global_variable(&str_quote);
-  str_escaped_quote = rb_str_new_literal("\"\"");
-  rb_global_variable(&str_escaped_quote);
-
-  str_header = rb_str_new_literal(RS_CSV_HEADER "\n");
-  rb_global_variable(&str_header);
-
-  str_unknown_class_name = rb_str_new_literal("<ROOT>");
-  rb_global_variable(&str_unknown_class_name);
-
-  str_unknown_method_name = rb_str_new_literal("<UNKNOWN>");
-  rb_global_variable(&str_unknown_method_name);
+  id_log_call = rb_intern("log_call");
 
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
-  rb_define_method(cRotoscope, "initialize", initialize, -1);
-  rb_define_method(cRotoscope, "trace", (VALUE(*)(ANYARGS))rotoscope_trace, 0);
-  rb_define_method(cRotoscope, "close", (VALUE(*)(ANYARGS))rotoscope_close, 0);
-  rb_define_method(cRotoscope, "io", rotoscope_io, 0);
-  rb_define_method(cRotoscope, "start_trace",
-                   (VALUE(*)(ANYARGS))rotoscope_start_trace, 0);
-  rb_define_method(cRotoscope, "stop_trace",
-                   (VALUE(*)(ANYARGS))rotoscope_stop_trace, 0);
-  rb_define_method(cRotoscope, "state", (VALUE(*)(ANYARGS))rotoscope_state, 0);
+  rb_define_method(cRotoscope, "trace", rotoscope_trace, 0);
+  rb_define_method(cRotoscope, "start_trace", rotoscope_start_trace, 0);
+  rb_define_method(cRotoscope, "stop_trace", rotoscope_stop_trace, 0);
+  rb_define_method(cRotoscope, "tracing?", rotoscope_tracing_p, 0);
+  rb_define_protected_method(cRotoscope, "class_name", rotoscope_class_name, 0);
+  rb_define_protected_method(cRotoscope, "method_name", rotoscope_method_name,
+                             0);
+  rb_define_protected_method(cRotoscope, "singleton_method?",
+                             rotoscope_singleton_method_p, 0);
+  rb_define_protected_method(cRotoscope, "caller_class_name",
+                             rotoscope_caller_class_name, 0);
+  rb_define_protected_method(cRotoscope, "caller_method_name",
+                             rotoscope_caller_method_name, 0);
+  rb_define_protected_method(cRotoscope, "caller_singleton_method?",
+                             rotoscope_caller_singleton_method_p, 0);
+  rb_define_protected_method(cRotoscope, "caller_path", rotoscope_caller_path,
+                             0);
+  rb_define_protected_method(cRotoscope, "caller_lineno",
+                             rotoscope_caller_lineno, 0);
 
   init_callsite();
 }
