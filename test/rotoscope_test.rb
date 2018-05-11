@@ -446,6 +446,19 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents)
   end
 
+  def test_trace_block
+    calls = []
+    rotoscope = Rotoscope.new do |rs|
+      calls << { class_name: rs.class_name, method_name: rs.method_name, singleton_method: rs.singleton_method? }
+    end
+    rotoscope.trace do
+      Example.singleton_method
+    end
+    assert_equal [
+      { class_name: 'Example', method_name: 'singleton_method', singleton_method: true }
+    ], calls
+  end
+
   private
 
   def parse_and_normalize(csv_string)

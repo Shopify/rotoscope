@@ -18,6 +18,7 @@ typedef struct {
   rs_stack_t stack;
   rs_stack_frame_t *caller;
   rs_callsite_t callsite;
+  VALUE trace_proc;
 } Rotoscope;
 
 #endif

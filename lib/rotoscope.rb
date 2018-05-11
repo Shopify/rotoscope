@@ -18,25 +18,34 @@ class Rotoscope
 
   attr_reader :io, :log_path, :blacklist
 
-  def initialize(output, blacklist: [])
-    unless blacklist.is_a?(Regexp)
-      blacklist = Regexp.union(blacklist)
-    end
-    @blacklist = blacklist
-
-    if output.is_a?(String)
-      @log_path = output
-      @io = File.open(output, 'w')
-      prevent_flush_from_finalizer_in_fork(@io)
+  def initialize(output = nil, blacklist: nil, &block)
+    if block
+      unless output.nil? || blacklist.nil?
+        raise ArgumentError, "Cannot provide output or blacklist with trace block"
+      end
+      initialize_ext(&block)
     else
-      @log_path = nil
-      @io = output
+      unless blacklist.is_a?(Regexp)
+        blacklist = Regexp.union(blacklist || [])
+      end
+      @blacklist = blacklist
+
+      if output.is_a?(String)
+        @log_path = output
+        @io = File.open(output, 'w')
+        prevent_flush_from_finalizer_in_fork(@io)
+      else
+        @log_path = nil
+        @io = output
+      end
+      @output_buffer = ''.dup
+      initialize_ext(&method(:log_call))
+
+      io << HEADER
     end
+
     @pid = Process.pid
     @thread = Thread.current
-    @output_buffer = ''.dup
-
-    io << HEADER
   end
 
   def mark(message = "")
@@ -82,7 +91,7 @@ class Rotoscope
     "#{chars.first(17).join('')}...#{chars.last(20).join('')}"
   end
 
-  def log_call
+  def log_call(_rotoscope)
     return if blacklist.match?(caller_path)
 
     if caller_method_name.nil?
