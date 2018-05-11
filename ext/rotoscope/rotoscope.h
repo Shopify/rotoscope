@@ -18,15 +18,15 @@
 #define RS_CSV_HEADER \
   "entity,caller_entity,filepath,lineno,method_name,method_level,caller_method_name,caller_method_level"
 #define RS_CSV_FORMAT "\"%s\",\"%s\",\"%s\",%d,\"%s\",%s,\"%s\",%s"
-#define RS_CSV_VALUES(trace, caller_trace, method_name, caller_method_name) \
-  StringValueCStr((trace)->entity),        \
-  StringValueCStr((caller_trace)->entity), \
-  StringValueCStr((trace)->filepath),      \
-  (trace)->lineno,                         \
-  StringValueCStr(method_name),            \
-  (trace)->method_level,                   \
-  StringValueCStr(caller_method_name),     \
-  (caller_trace)->method_level
+#define RS_CSV_VALUES(method, caller_method, call_site) \
+  StringValueCStr((method).class_name),        \
+  StringValueCStr((caller_method).class_name), \
+  StringValueCStr((call_site)->filepath),      \
+  (call_site)->lineno,                         \
+  StringValueCStr(method.name),                \
+  (method).level,                              \
+  StringValueCStr(caller_method.name),         \
+  (caller_method).level
 
 // clang-format on
 
@@ -47,10 +47,5 @@ typedef struct {
   rs_stack_t stack;
   VALUE output_buffer;
 } Rotoscope;
-
-typedef struct {
-  VALUE name;
-  const char *method_level;
-} rs_class_desc_t;
 
 #endif
