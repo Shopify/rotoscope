@@ -34,6 +34,7 @@ class Rotoscope
     end
     @pid = Process.pid
     @thread = Thread.current
+    @output_buffer = String.new
 
     io << HEADER
   end
@@ -97,15 +98,18 @@ class Rotoscope
     call_method_level = singleton_method? ? 'class' : 'instance'
     method_name = escape_csv_string(self.method_name)
 
-    io <<
+    buffer = @output_buffer
+    buffer.clear
+    buffer <<
       '"' << class_name << '",' \
       '"' << caller_class_name << '",' \
       '"' << caller_path << '",' \
-      << caller_lineno << ',' \
+      << caller_lineno.to_s << ',' \
       '"' << method_name << '",' \
       << call_method_level << ',' \
       '"' << caller_method_name << '",' \
       << caller_method_level << "\n"
+    io.write(buffer)
   end
 
   def escape_csv_string(string)
