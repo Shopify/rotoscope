@@ -48,6 +48,13 @@ class Rotoscope
     @thread = Thread.current
   end
 
+  def trace
+    start_trace
+    yield
+  ensure
+    stop_trace
+  end
+
   def mark(message = "")
     was_tracing = tracing?
     if was_tracing

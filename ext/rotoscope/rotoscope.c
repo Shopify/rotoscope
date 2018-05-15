@@ -193,11 +193,6 @@ VALUE rotoscope_stop_trace(VALUE self) {
   return Qnil;
 }
 
-VALUE rotoscope_trace(VALUE self) {
-  rotoscope_start_trace(self);
-  return rb_ensure(rb_yield, Qundef, rotoscope_stop_trace, self);
-}
-
 VALUE rotoscope_tracing_p(VALUE self) {
   Rotoscope *config = get_config(self);
   return config->tracing ? Qtrue : Qfalse;
@@ -273,7 +268,6 @@ void Init_rotoscope(void) {
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
   rb_define_method(cRotoscope, "initialize_ext", rotoscope_initialize, 0);
-  rb_define_method(cRotoscope, "trace", rotoscope_trace, 0);
   rb_define_method(cRotoscope, "start_trace", rotoscope_start_trace, 0);
   rb_define_method(cRotoscope, "stop_trace", rotoscope_stop_trace, 0);
   rb_define_method(cRotoscope, "tracing?", rotoscope_tracing_p, 0);
