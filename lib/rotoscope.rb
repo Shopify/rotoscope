@@ -34,7 +34,7 @@ class Rotoscope
     end
     @pid = Process.pid
     @thread = Thread.current
-    @output_buffer = String.new
+    @output_buffer = ''.dup
 
     io << HEADER
   end
