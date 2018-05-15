@@ -58,12 +58,9 @@ static rs_method_desc_t called_method_desc(rb_trace_arg_t *trace_arg) {
   VALUE method_id = rb_tracearg_method_id(trace_arg);
   bool singleton_p = (RB_TYPE_P(self, T_CLASS) || RB_TYPE_P(self, T_MODULE)) &&
                      SYM2ID(method_id) != id_initialize;
-  VALUE klass = singleton_p ? self : rb_obj_class(self);
 
   return (rs_method_desc_t){
-      .class_name = class2str(klass),
-      .id = method_id,
-      .singleton_p = singleton_p,
+      .self = self, .id = method_id, .singleton_p = singleton_p,
   };
 }
 
@@ -198,13 +195,26 @@ VALUE rotoscope_tracing_p(VALUE self) {
   return config->tracing ? Qtrue : Qfalse;
 }
 
-VALUE rotoscope_class_name(VALUE self) {
+VALUE rotoscope_self(VALUE self) {
+  Rotoscope *config = get_config(self);
+  return rb_tracearg_self(rb_tracearg_from_tracepoint(config->tracepoint));
+}
+
+VALUE rotoscope_klass(VALUE self) {
   Rotoscope *config = get_config(self);
   rs_stack_frame_t *call = rs_stack_peek(&config->stack);
   if (call == NULL) {
     return Qnil;
   }
-  return call->method.class_name;
+  return rs_method_class(&call->method);
+}
+
+VALUE rotoscope_class_name(VALUE self) {
+  VALUE klass = rotoscope_klass(self);
+  if (klass == Qnil) {
+    return Qnil;
+  }
+  return class2str(klass);
 }
 
 VALUE rotoscope_method_name(VALUE self) {
@@ -225,12 +235,28 @@ VALUE rotoscope_singleton_method_p(VALUE self) {
   return call->method.singleton_p ? Qtrue : Qfalse;
 }
 
-VALUE rotoscope_caller_class_name(VALUE self) {
+VALUE rotoscope_caller_self(VALUE self) {
   Rotoscope *config = get_config(self);
   if (config->caller == NULL) {
     return Qnil;
   }
-  return config->caller->method.class_name;
+  return config->caller->method.self;
+}
+
+VALUE rotoscope_caller_class(VALUE self) {
+  Rotoscope *config = get_config(self);
+  if (config->caller == NULL) {
+    return Qnil;
+  }
+  return rs_method_class(&config->caller->method);
+}
+
+VALUE rotoscope_caller_class_name(VALUE self) {
+  VALUE klass = rotoscope_caller_class(self);
+  if (klass == Qnil) {
+    return Qnil;
+  }
+  return class2str(klass);
 }
 
 VALUE rotoscope_caller_method_name(VALUE self) {
@@ -271,10 +297,14 @@ void Init_rotoscope(void) {
   rb_define_method(cRotoscope, "start_trace", rotoscope_start_trace, 0);
   rb_define_method(cRotoscope, "stop_trace", rotoscope_stop_trace, 0);
   rb_define_method(cRotoscope, "tracing?", rotoscope_tracing_p, 0);
+  rb_define_method(cRotoscope, "self", rotoscope_self, 0);
+  rb_define_method(cRotoscope, "klass", rotoscope_klass, 0);
   rb_define_method(cRotoscope, "class_name", rotoscope_class_name, 0);
   rb_define_method(cRotoscope, "method_name", rotoscope_method_name, 0);
   rb_define_method(cRotoscope, "singleton_method?",
                    rotoscope_singleton_method_p, 0);
+  rb_define_method(cRotoscope, "caller_self", rotoscope_caller_self, 0);
+  rb_define_method(cRotoscope, "caller_class", rotoscope_caller_class, 0);
   rb_define_method(cRotoscope, "caller_class_name", rotoscope_caller_class_name,
                    0);
   rb_define_method(cRotoscope, "caller_method_name",

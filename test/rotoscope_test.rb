@@ -449,14 +449,47 @@ class RotoscopeTest < MiniTest::Test
   def test_trace_block
     calls = []
     rotoscope = Rotoscope.new do |rs|
-      calls << { class_name: rs.class_name, method_name: rs.method_name, singleton_method: rs.singleton_method? }
+      calls << {
+        klass: rs.klass,
+        class_name: rs.class_name,
+        method_name: rs.method_name,
+        singleton_method: rs.singleton_method?
+      }
     end
     rotoscope.trace do
       Example.singleton_method
     end
     assert_equal [
-      { class_name: 'Example', method_name: 'singleton_method', singleton_method: true }
+      {
+        klass: Example,
+        class_name: 'Example',
+        method_name: 'singleton_method',
+        singleton_method: true
+      }
     ], calls
+  end
+
+  def test_caller
+    last_call = nil
+    rotoscope = Rotoscope.new do |rs|
+      last_call = {
+        method_name: rs.method_name,
+        caller_class: rs.caller_class,
+        caller_class_name: rs.caller_class_name,
+        caller_method_name: rs.caller_method_name,
+        caller_singleton_method: rs.caller_singleton_method?
+      }
+    end
+    rotoscope.trace do
+      FixtureOuter.new.do_work
+    end
+    assert_equal({
+      method_name: 'sum',
+      caller_class: FixtureInner,
+      caller_class_name: 'FixtureInner',
+      caller_method_name: 'do_work',
+      caller_singleton_method: false,
+    }, last_call)
   end
 
   private
