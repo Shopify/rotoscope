@@ -54,13 +54,13 @@ static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg) {
 }
 
 static rs_method_desc_t called_method_desc(rb_trace_arg_t *trace_arg) {
-  VALUE self = rb_tracearg_self(trace_arg);
+  VALUE receiver = rb_tracearg_self(trace_arg);
   VALUE method_id = rb_tracearg_method_id(trace_arg);
-  bool singleton_p = (RB_TYPE_P(self, T_CLASS) || RB_TYPE_P(self, T_MODULE)) &&
+  bool singleton_p = (RB_TYPE_P(receiver, T_CLASS) || RB_TYPE_P(receiver, T_MODULE)) &&
                      SYM2ID(method_id) != id_initialize;
 
   return (rs_method_desc_t){
-      .self = self, .id = method_id, .singleton_p = singleton_p,
+      .receiver = receiver, .id = method_id, .singleton_p = singleton_p,
   };
 }
 
@@ -195,12 +195,12 @@ VALUE rotoscope_tracing_p(VALUE self) {
   return config->tracing ? Qtrue : Qfalse;
 }
 
-VALUE rotoscope_self(VALUE self) {
+VALUE rotoscope_receiver(VALUE self) {
   Rotoscope *config = get_config(self);
   return rb_tracearg_self(rb_tracearg_from_tracepoint(config->tracepoint));
 }
 
-VALUE rotoscope_klass(VALUE self) {
+VALUE rotoscope_receiver_class(VALUE self) {
   Rotoscope *config = get_config(self);
   rs_stack_frame_t *call = rs_stack_peek(&config->stack);
   if (call == NULL) {
@@ -209,8 +209,8 @@ VALUE rotoscope_klass(VALUE self) {
   return rs_method_class(&call->method);
 }
 
-VALUE rotoscope_class_name(VALUE self) {
-  VALUE klass = rotoscope_klass(self);
+VALUE rotoscope_receiver_class_name(VALUE self) {
+  VALUE klass = rotoscope_receiver_class(self);
   if (klass == Qnil) {
     return Qnil;
   }
@@ -235,12 +235,12 @@ VALUE rotoscope_singleton_method_p(VALUE self) {
   return call->method.singleton_p ? Qtrue : Qfalse;
 }
 
-VALUE rotoscope_caller_self(VALUE self) {
+VALUE rotoscope_caller_object(VALUE self) {
   Rotoscope *config = get_config(self);
   if (config->caller == NULL) {
     return Qnil;
   }
-  return config->caller->method.self;
+  return config->caller->method.receiver;
 }
 
 VALUE rotoscope_caller_class(VALUE self) {
@@ -297,13 +297,13 @@ void Init_rotoscope(void) {
   rb_define_method(cRotoscope, "start_trace", rotoscope_start_trace, 0);
   rb_define_method(cRotoscope, "stop_trace", rotoscope_stop_trace, 0);
   rb_define_method(cRotoscope, "tracing?", rotoscope_tracing_p, 0);
-  rb_define_method(cRotoscope, "self", rotoscope_self, 0);
-  rb_define_method(cRotoscope, "klass", rotoscope_klass, 0);
-  rb_define_method(cRotoscope, "class_name", rotoscope_class_name, 0);
+  rb_define_method(cRotoscope, "receiver", rotoscope_receiver, 0);
+  rb_define_method(cRotoscope, "receiver_class", rotoscope_receiver_class, 0);
+  rb_define_method(cRotoscope, "receiver_class_name", rotoscope_receiver_class_name, 0);
   rb_define_method(cRotoscope, "method_name", rotoscope_method_name, 0);
   rb_define_method(cRotoscope, "singleton_method?",
                    rotoscope_singleton_method_p, 0);
-  rb_define_method(cRotoscope, "caller_self", rotoscope_caller_self, 0);
+  rb_define_method(cRotoscope, "caller_object", rotoscope_caller_object, 0);
   rb_define_method(cRotoscope, "caller_class", rotoscope_caller_class, 0);
   rb_define_method(cRotoscope, "caller_class_name", rotoscope_caller_class_name,
                    0);

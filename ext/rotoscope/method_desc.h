@@ -5,7 +5,7 @@
 #include "stdbool.h"
 
 typedef struct rs_method_desc_t {
-  VALUE self;
+  VALUE receiver;
   VALUE id;
   bool singleton_p;
 } rs_method_desc_t;

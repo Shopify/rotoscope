@@ -87,30 +87,30 @@ class Rotoscope
 
     private
 
-    def log_call(rs)
-      return if blacklist.match?(rs.caller_path)
-      return if self == rs.self
+    def log_call(call)
+      return if blacklist.match?(call.caller_path)
+      return if self == call.receiver
 
-      if rs.caller_method_name.nil?
+      if call.caller_method_name.nil?
         caller_class_name = '<ROOT>'
         caller_method_name = '<UNKNOWN>'
         caller_method_level = '<UNKNOWN>'
       else
-        caller_class_name = rs.caller_class_name
-        caller_method_name = escape_csv_string(rs.caller_method_name)
-        caller_method_level = rs.caller_singleton_method? ? 'class' : 'instance'
+        caller_class_name = call.caller_class_name
+        caller_method_name = escape_csv_string(call.caller_method_name)
+        caller_method_level = call.caller_singleton_method? ? 'class' : 'instance'
       end
 
-      call_method_level = rs.singleton_method? ? 'class' : 'instance'
-      method_name = escape_csv_string(rs.method_name)
+      call_method_level = call.singleton_method? ? 'class' : 'instance'
+      method_name = escape_csv_string(call.method_name)
 
       buffer = @output_buffer
       buffer.clear
       buffer <<
-        '"' << rs.class_name << '",' \
+        '"' << call.receiver_class_name << '",' \
         '"' << caller_class_name << '",' \
-        '"' << rs.caller_path << '",' \
-        << rs.caller_lineno.to_s << ',' \
+        '"' << call.caller_path << '",' \
+        << call.caller_lineno.to_s << ',' \
         '"' << method_name << '",' \
         << call_method_level << ',' \
         '"' << caller_method_name << '",' \

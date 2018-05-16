@@ -444,8 +444,8 @@ class RotoscopeTest < MiniTest::Test
     calls = []
     rotoscope = Rotoscope.new do |rs|
       calls << {
-        klass: rs.klass,
-        class_name: rs.class_name,
+        receiver_class: rs.receiver_class,
+        receiver_class_name: rs.receiver_class_name,
         method_name: rs.method_name,
         singleton_method: rs.singleton_method?
       }
@@ -455,8 +455,8 @@ class RotoscopeTest < MiniTest::Test
     end
     assert_equal [
       {
-        klass: Example,
-        class_name: 'Example',
+        receiver_class: Example,
+        receiver_class_name: 'Example',
         method_name: 'singleton_method',
         singleton_method: true
       }
