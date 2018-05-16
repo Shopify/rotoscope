@@ -1,7 +1,7 @@
 #! /usr/bin/env bash
 
 echo "Formatting C code..."
-find "$PWD" -iname lib/rotoscope/*.h -o -iname *.c | xargs clang-format -i -style=file
+find "$PWD/ext" -iname '*.c' -o -iname '*.h' | xargs clang-format -i -style=file
 
 echo "Formatting Ruby code..."
 bundle exec rubocop -a
