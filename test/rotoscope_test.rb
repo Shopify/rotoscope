@@ -292,7 +292,7 @@ class RotoscopeTest < MiniTest::Test
       { entity: "FixtureInner", method_name: "initialize", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "new", caller_method_level: "class" },
       { entity: "FixtureOuter", method_name: "do_work", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<ROOT>", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
       { entity: "FixtureInner", method_name: "do_work", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "do_work", caller_method_level: "instance" },
-      { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "do_work", caller_method_level: "instance" }
+      { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "do_work", caller_method_level: "instance" },
     ], parse_and_normalize(contents)
   end
 
@@ -447,7 +447,7 @@ class RotoscopeTest < MiniTest::Test
         receiver_class: rs.receiver_class,
         receiver_class_name: rs.receiver_class_name,
         method_name: rs.method_name,
-        singleton_method: rs.singleton_method?
+        singleton_method: rs.singleton_method?,
       }
     end
     rotoscope.trace do
@@ -458,8 +458,8 @@ class RotoscopeTest < MiniTest::Test
         receiver_class: Example,
         receiver_class_name: 'Example',
         method_name: 'singleton_method',
-        singleton_method: true
-      }
+        singleton_method: true,
+      },
     ], calls
   end
 
@@ -471,7 +471,7 @@ class RotoscopeTest < MiniTest::Test
         caller_class: rs.caller_class,
         caller_class_name: rs.caller_class_name,
         caller_method_name: rs.caller_method_name,
-        caller_singleton_method: rs.caller_singleton_method?
+        caller_singleton_method: rs.caller_singleton_method?,
       }
     end
     rotoscope.trace do
