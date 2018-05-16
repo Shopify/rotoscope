@@ -79,24 +79,24 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_new
-    rs = Rotoscope.new(@logfile, blacklist: ['tmp'])
-    assert rs.is_a?(Rotoscope)
+    rs = Rotoscope::CallLogger.new(@logfile, blacklist: ['tmp'])
+    assert rs.is_a?(Rotoscope::CallLogger)
   end
 
   def test_close
-    rs = Rotoscope.new(@logfile)
+    rs = Rotoscope::CallLogger.new(@logfile)
     assert rs.close
   end
 
   def test_closed?
-    rs = Rotoscope.new(@logfile)
+    rs = Rotoscope::CallLogger.new(@logfile)
     refute_predicate rs, :closed?
     rs.close
     assert_predicate rs, :closed?
   end
 
   def test_state
-    rs = Rotoscope.new(@logfile)
+    rs = Rotoscope::CallLogger.new(@logfile)
     assert_equal :open, rs.state
     rs.trace do
       assert_equal :tracing, rs.state
@@ -142,7 +142,7 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_start_trace_and_stop_trace
-    rs = Rotoscope.new(@logfile)
+    rs = Rotoscope::CallLogger.new(@logfile)
     rs.start_trace
     Example.new.normal_method
     rs.stop_trace
@@ -312,7 +312,7 @@ class RotoscopeTest < MiniTest::Test
 
   def test_trace_uses_io_objects
     string_io = StringIO.new
-    Rotoscope.trace(string_io) do
+    Rotoscope::CallLogger.trace(string_io) do
       Example.new.normal_method
     end
     refute_predicate string_io, :closed?
@@ -327,13 +327,13 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_stop_trace_before_start_does_not_raise
-    rs = Rotoscope.new(@logfile)
+    rs = Rotoscope::CallLogger.new(@logfile)
     rs.stop_trace
   end
 
   def test_gc_rotoscope_without_stop_trace_does_not_crash
     proc {
-      rs = Rotoscope.new(@logfile)
+      rs = Rotoscope::CallLogger.new(@logfile)
       rs.start_trace
     }.call
     GC.start
@@ -341,17 +341,11 @@ class RotoscopeTest < MiniTest::Test
 
   def test_gc_rotoscope_without_stop_trace_does_not_break_process_cleanup
     child_pid = fork do
-      rs = Rotoscope.new(@logfile)
+      rs = Rotoscope::CallLogger.new(@logfile)
       rs.start_trace
     end
     Process.waitpid(child_pid)
     assert_equal true, $CHILD_STATUS.success?
-  end
-
-  def test_log_path
-    rs = Rotoscope.new(File.expand_path('tmp/test.csv.gz'))
-    GC.start
-    assert_equal File.expand_path('tmp/test.csv.gz'), rs.log_path
   end
 
   def test_ignores_calls_inside_of_threads
@@ -508,7 +502,7 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def rotoscope_trace(blacklist: [])
-    Rotoscope.trace(@logfile, blacklist: blacklist) { |rotoscope| yield rotoscope }
+    Rotoscope::CallLogger.trace(@logfile, blacklist: blacklist) { |rotoscope| yield rotoscope }
     File.read(@logfile)
   end
 
