@@ -56,8 +56,9 @@ static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg) {
 static rs_method_desc_t called_method_desc(rb_trace_arg_t *trace_arg) {
   VALUE receiver = rb_tracearg_self(trace_arg);
   VALUE method_id = rb_tracearg_method_id(trace_arg);
-  bool singleton_p = (RB_TYPE_P(receiver, T_CLASS) || RB_TYPE_P(receiver, T_MODULE)) &&
-                     SYM2ID(method_id) != id_initialize;
+  bool singleton_p =
+      (RB_TYPE_P(receiver, T_CLASS) || RB_TYPE_P(receiver, T_MODULE)) &&
+      SYM2ID(method_id) != id_initialize;
 
   return (rs_method_desc_t){
       .receiver = receiver, .id = method_id, .singleton_p = singleton_p,
@@ -299,7 +300,8 @@ void Init_rotoscope(void) {
   rb_define_method(cRotoscope, "tracing?", rotoscope_tracing_p, 0);
   rb_define_method(cRotoscope, "receiver", rotoscope_receiver, 0);
   rb_define_method(cRotoscope, "receiver_class", rotoscope_receiver_class, 0);
-  rb_define_method(cRotoscope, "receiver_class_name", rotoscope_receiver_class_name, 0);
+  rb_define_method(cRotoscope, "receiver_class_name",
+                   rotoscope_receiver_class_name, 0);
   rb_define_method(cRotoscope, "method_name", rotoscope_method_name, 0);
   rb_define_method(cRotoscope, "singleton_method?",
                    rotoscope_singleton_method_p, 0);
