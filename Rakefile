@@ -40,17 +40,4 @@ task :rubocop do
   RuboCop::RakeTask.new
 end
 
-namespace :lint do
-  task ruby: :rubocop
-
-  task :c do
-    grep_matches = system("find '#{__dir__}/ext' -iname '*.c' -o -iname '*.h' " \
-      "| xargs clang-format -style=file -output-replacements-xml | grep -q '<replacement '")
-    if grep_matches
-      abort "C format changes are needed. Please run bin/fmt"
-    end
-  end
-end
-task lint: ['lint:ruby', 'lint:c']
-
-task default: [:test, :lint]
+task default: [:test, :rubocop]
