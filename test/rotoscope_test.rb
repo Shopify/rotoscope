@@ -79,7 +79,7 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_new
-    rs = Rotoscope::CallLogger.new(@logfile, blacklist: ['tmp'])
+    rs = Rotoscope::CallLogger.new(@logfile, blacklist: %w(tmp))
     assert rs.is_a?(Rotoscope::CallLogger)
   end
 
