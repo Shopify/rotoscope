@@ -1,5 +1,9 @@
 ---
 name: rotoscope
+
+env:
+  ROTOSCOPE_COMPILE_ERROR: '1'
+
 up:
   - ruby: 2.4.3
   - homebrew:
