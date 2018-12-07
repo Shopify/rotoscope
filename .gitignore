@@ -2,6 +2,7 @@ tmp
 lib/rotoscope/rotoscope.bundle
 lib/rotoscope/rotoscope.so
 .vscode
+.bundle
 *.gem
 .rubocop-*
 Gemfile.lock

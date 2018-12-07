@@ -10,15 +10,17 @@
 #define STACK_CAPACITY 500
 
 typedef struct {
-  VALUE self;
-  VALUE tracepoint;
+  VALUE self;            // Rotoscope
+  VALUE tracepoint;      // Tracepoint
+  VALUE whitelist_path;  // String
+  VALUE trace_proc;      // Proc, called for every call event (that isn't filtered out)
+
   pid_t pid;
   unsigned long tid;
   bool tracing;
   rs_stack_t stack;
   rs_stack_frame_t *caller;
   rs_callsite_t callsite;
-  VALUE trace_proc;
 } Rotoscope;
 
 #endif

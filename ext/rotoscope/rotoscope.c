@@ -14,7 +14,7 @@
 #include "stack.h"
 
 VALUE cRotoscope, cTracePoint;
-ID id_initialize, id_call;
+ID id_initialize, id_call, id_match;
 
 static unsigned long gettid() {
   return NUM2ULONG(rb_obj_id(rb_thread_current()));
@@ -121,19 +121,31 @@ static void event_hook(VALUE tpval, void *data) {
     return;
   }
 
-  config->callsite = tracearg_path(trace_arg);
-
+  rs_callsite_t callsite = tracearg_path(trace_arg);
+  config->callsite = callsite;
   config->caller = rs_stack_peek(&config->stack);
 
   rs_method_desc_t method_desc = called_method_desc(trace_arg);
   rs_stack_push(&config->stack, (rs_stack_frame_t){.method = method_desc});
 
-  rb_funcall(config->trace_proc, id_call, 1, config->self);
+  VALUE whitelist = config->whitelist_path;
+  if (RTEST(whitelist)) {
+    if (RSTRING_LEN(callsite.filepath) < RSTRING_LEN(whitelist)) {
+      return;
+    }
+
+    if (memcmp(RSTRING_PTR(callsite.filepath), RSTRING_PTR(whitelist), RSTRING_LEN(whitelist)) != 0) {
+      return;
+    }
+  }
+
+  /*rb_funcall(config->trace_proc, id_call, 1, config->self);*/
 }
 
 static void rs_gc_mark(Rotoscope *config) {
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->trace_proc);
+  rb_gc_mark(config->whitelist_path);
   rs_stack_mark(&config->stack);
 }
 
@@ -145,8 +157,7 @@ void rs_dealloc(Rotoscope *config) {
 
 static VALUE rs_alloc(VALUE klass) {
   Rotoscope *config;
-  VALUE self =
-      Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
+  VALUE self = Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
   config->self = self;
   config->pid = getpid();
   config->tid = gettid();
@@ -155,9 +166,9 @@ static VALUE rs_alloc(VALUE klass) {
   config->callsite.filepath = Qnil;
   config->callsite.lineno = 0;
   config->trace_proc = Qnil;
+  config->whitelist_path = Qnil;
   rs_stack_init(&config->stack, STACK_CAPACITY);
-  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
-                                         event_hook, (void *)config);
+  config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN, event_hook, (void *)config);
   return self;
 }
 
@@ -167,8 +178,9 @@ static Rotoscope *get_config(VALUE self) {
   return config;
 }
 
-VALUE rotoscope_initialize(VALUE self) {
+VALUE rotoscope_initialize(VALUE self, VALUE whitelist_path) {
   Rotoscope *config = get_config(self);
+  config->whitelist_path = whitelist_path;
   config->trace_proc = rb_block_proc();
   return self;
 }
@@ -291,28 +303,24 @@ void Init_rotoscope(void) {
 
   id_initialize = rb_intern("initialize");
   id_call = rb_intern("call");
+  id_match = rb_intern("start_with?");
 
   cRotoscope = rb_define_class("Rotoscope", rb_cObject);
   rb_define_alloc_func(cRotoscope, rs_alloc);
-  rb_define_method(cRotoscope, "initialize", rotoscope_initialize, 0);
+  rb_define_method(cRotoscope, "initialize", rotoscope_initialize, 1);
   rb_define_method(cRotoscope, "start_trace", rotoscope_start_trace, 0);
   rb_define_method(cRotoscope, "stop_trace", rotoscope_stop_trace, 0);
   rb_define_method(cRotoscope, "tracing?", rotoscope_tracing_p, 0);
   rb_define_method(cRotoscope, "receiver", rotoscope_receiver, 0);
   rb_define_method(cRotoscope, "receiver_class", rotoscope_receiver_class, 0);
-  rb_define_method(cRotoscope, "receiver_class_name",
-                   rotoscope_receiver_class_name, 0);
+  rb_define_method(cRotoscope, "receiver_class_name", rotoscope_receiver_class_name, 0);
   rb_define_method(cRotoscope, "method_name", rotoscope_method_name, 0);
-  rb_define_method(cRotoscope, "singleton_method?",
-                   rotoscope_singleton_method_p, 0);
+  rb_define_method(cRotoscope, "singleton_method?", rotoscope_singleton_method_p, 0);
   rb_define_method(cRotoscope, "caller_object", rotoscope_caller_object, 0);
   rb_define_method(cRotoscope, "caller_class", rotoscope_caller_class, 0);
-  rb_define_method(cRotoscope, "caller_class_name", rotoscope_caller_class_name,
-                   0);
-  rb_define_method(cRotoscope, "caller_method_name",
-                   rotoscope_caller_method_name, 0);
-  rb_define_method(cRotoscope, "caller_singleton_method?",
-                   rotoscope_caller_singleton_method_p, 0);
+  rb_define_method(cRotoscope, "caller_class_name", rotoscope_caller_class_name, 0);
+  rb_define_method(cRotoscope, "caller_method_name", rotoscope_caller_method_name, 0);
+  rb_define_method(cRotoscope, "caller_singleton_method?", rotoscope_caller_singleton_method_p, 0);
   rb_define_method(cRotoscope, "caller_path", rotoscope_caller_path, 0);
   rb_define_method(cRotoscope, "caller_lineno", rotoscope_caller_lineno, 0);
 
