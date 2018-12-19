@@ -5,3 +5,4 @@ lib/rotoscope/rotoscope.so
 *.gem
 .rubocop-*
 Gemfile.lock
+.bundle
