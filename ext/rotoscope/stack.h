@@ -3,7 +3,9 @@
 #include <stdbool.h>
 #include "method_desc.h"
 
-typedef struct { rs_method_desc_t method; } rs_stack_frame_t;
+typedef struct {
+  rs_method_desc_t method;
+} rs_stack_frame_t;
 
 typedef struct {
   int capacity;

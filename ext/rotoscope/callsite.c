@@ -21,12 +21,14 @@ rs_callsite_t ruby_callsite(rb_trace_arg_t *trace_arg) {
   // frame.
   if (rb_profile_frames(0, 2, frames, lines) < 2) {
     return (rs_callsite_t){
-        .filepath = empty_ruby_string, .lineno = 0,
+        .filepath = empty_ruby_string,
+        .lineno = 0,
     };
   }
 
   return (rs_callsite_t){
-      .filepath = rb_profile_frame_path(frames[1]), .lineno = lines[1],
+      .filepath = rb_profile_frame_path(frames[1]),
+      .lineno = lines[1],
   };
 }
 
