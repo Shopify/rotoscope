@@ -16,14 +16,14 @@ Gem::Specification.new do |s|
   s.summary     = "Tracing Ruby"
   s.description = "High-performance logger of Ruby method invocations"
 
-  s.files       = `git ls-files -z`.split("\x0").reject do |f|
+  s.files       = %x(git ls-files -z).split("\x0").reject do |f|
     f.match(%r{^(test)/})
   end
   s.required_ruby_version = ">= 2.2.0"
   s.extensions = %w(ext/rotoscope/extconf.rb)
 
-  s.add_development_dependency 'rake-compiler', '~> 0.9'
-  s.add_development_dependency 'mocha', '~> 0.14'
-  s.add_development_dependency 'minitest', '~> 5.0'
-  s.add_development_dependency 'rubocop', '~> 0.56'
+  s.add_development_dependency('rake-compiler', '~> 0.9')
+  s.add_development_dependency('mocha', '~> 0.14')
+  s.add_development_dependency('minitest', '~> 5.0')
+  s.add_development_dependency('rubocop', '~> 0.56')
 end
