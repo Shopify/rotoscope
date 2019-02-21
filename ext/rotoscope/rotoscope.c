@@ -61,9 +61,7 @@ static rs_method_desc_t called_method_desc(rb_trace_arg_t *trace_arg) {
       SYM2ID(method_id) != id_initialize;
 
   return (rs_method_desc_t){
-      .receiver = receiver,
-      .id = method_id,
-      .singleton_p = singleton_p,
+      .receiver = receiver, .id = method_id, .singleton_p = singleton_p,
   };
 }
 
