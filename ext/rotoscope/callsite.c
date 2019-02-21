@@ -12,7 +12,7 @@ rs_callsite_t c_callsite(rb_trace_arg_t *trace_arg) {
   };
 }
 
-rs_callsite_t ruby_callsite(rb_trace_arg_t *trace_arg) {
+rs_callsite_t ruby_callsite() {
   VALUE frames[2];
   int lines[2];
   // There is currently a bug in rb_profile_frames that
