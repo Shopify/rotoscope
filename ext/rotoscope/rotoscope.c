@@ -263,18 +263,12 @@ VALUE rotoscope_caller_class_name(VALUE self) {
 
 VALUE rotoscope_caller_method_name(VALUE self) {
   Rotoscope *config = get_config(self);
-  if (config->caller == NULL) {
-    return Qnil;
-  }
-  return rb_sym2str(config->caller->method.id);
+  return config->callsite.method_name;
 }
 
 VALUE rotoscope_caller_singleton_method_p(VALUE self) {
   Rotoscope *config = get_config(self);
-  if (config->caller == NULL) {
-    return Qnil;
-  }
-  return config->caller->method.singleton_p ? Qtrue : Qfalse;
+  return config->callsite.singleton_p;
 }
 
 VALUE rotoscope_caller_path(VALUE self) {
