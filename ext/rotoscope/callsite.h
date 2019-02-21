@@ -12,6 +12,6 @@ typedef struct {
 void init_callsite();
 
 rs_callsite_t c_callsite(rb_trace_arg_t *trace_arg);
-rs_callsite_t ruby_callsite(rb_trace_arg_t *trace_arg);
+rs_callsite_t ruby_callsite();
 
 #endif

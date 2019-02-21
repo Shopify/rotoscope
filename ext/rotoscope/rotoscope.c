@@ -49,7 +49,7 @@ static rs_callsite_t tracearg_path(rb_trace_arg_t *trace_arg) {
     case RUBY_EVENT_C_CALL:
       return c_callsite(trace_arg);
     default:
-      return ruby_callsite(trace_arg);
+      return ruby_callsite();
   }
 }
 
