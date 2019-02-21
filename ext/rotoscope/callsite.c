@@ -20,9 +20,13 @@ static VALUE caller_frame(int *line, bool ruby_call) {
 }
 
 rs_callsite_t c_callsite(rb_trace_arg_t *trace_arg) {
-  VALUE path = rb_tracearg_path(trace_arg);
+  int line;
+  VALUE frame = caller_frame(&line, false);
   return (rs_callsite_t){
-      .filepath = path, .lineno = FIX2INT(rb_tracearg_lineno(trace_arg)),
+      .filepath = rb_tracearg_path(trace_arg),
+      .lineno = FIX2INT(rb_tracearg_lineno(trace_arg)),
+      .method_name = rb_profile_frame_method_name(frame),
+      .singleton_p = rb_profile_frame_singleton_method_p(frame),
   };
 }
 
@@ -31,6 +35,9 @@ rs_callsite_t ruby_callsite() {
   VALUE frame = caller_frame(&line, true);
 
   return (rs_callsite_t){
-      .filepath = rb_profile_frame_path(frame), .lineno = line,
+      .filepath = rb_profile_frame_path(frame),
+      .lineno = line,
+      .method_name = rb_profile_frame_method_name(frame),
+      .singleton_p = rb_profile_frame_singleton_method_p(frame),
   };
 }

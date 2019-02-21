@@ -152,8 +152,9 @@ static VALUE rs_alloc(VALUE klass) {
   config->tid = gettid();
   config->tracing = false;
   config->caller = NULL;
-  config->callsite.filepath = Qnil;
-  config->callsite.lineno = 0;
+  config->callsite = (rs_callsite_t){
+      .filepath = Qnil, .lineno = 0, .method_name = Qnil, .singleton_p = Qnil,
+  };
   config->trace_proc = Qnil;
   rs_stack_init(&config->stack, STACK_CAPACITY);
   config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
