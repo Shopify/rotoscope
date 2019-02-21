@@ -88,7 +88,8 @@ class Rotoscope
     private
 
     def log_call(call)
-      return if blacklist.match?(call.caller_path)
+      caller_path = call.caller_path || ''
+      return if blacklist.match?(caller_path)
       return if self == call.receiver
 
       if call.caller_method_name.nil?
@@ -109,7 +110,7 @@ class Rotoscope
       buffer <<
         '"' << call.receiver_class_name << '",' \
         '"' << caller_class_name << '",' \
-        '"' << call.caller_path << '",' \
+        '"' << caller_path << '",' \
         << call.caller_lineno.to_s << ',' \
         '"' << method_name << '",' \
         << call_method_level << ',' \

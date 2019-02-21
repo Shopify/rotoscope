@@ -315,6 +315,4 @@ void Init_rotoscope(void) {
                    rotoscope_caller_singleton_method_p, 0);
   rb_define_method(cRotoscope, "caller_path", rotoscope_caller_path, 0);
   rb_define_method(cRotoscope, "caller_lineno", rotoscope_caller_lineno, 0);
-
-  init_callsite();
 }
