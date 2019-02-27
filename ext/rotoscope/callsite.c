@@ -7,6 +7,13 @@ static VALUE caller_frame(int *line, bool ruby_call) {
   VALUE frames[2] = {Qnil, Qnil};
   int lines[2] = {0, 0};
 
+  // At this point, the top ruby stack frame is for the method
+  // being called, so we want to skip that frame and get
+  // the caller location. This is why we use 1 for ruby calls.
+  //
+  // However, rb_profile_frames also automatically skips over
+  // non-ruby stack frames, so we don't want to have to skip
+  // over any extra stack frames for a C call.
   int frame_index = ruby_call ? 1 : 0;
 
   // There is currently a bug in rb_profile_frames that
