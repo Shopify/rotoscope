@@ -152,8 +152,9 @@ static VALUE rs_alloc(VALUE klass) {
   config->tid = gettid();
   config->tracing = false;
   config->caller = NULL;
-  config->callsite.filepath = Qnil;
-  config->callsite.lineno = 0;
+  config->callsite = (rs_callsite_t){
+      .filepath = Qnil, .lineno = 0, .method_name = Qnil, .singleton_p = Qnil,
+  };
   config->trace_proc = Qnil;
   rs_stack_init(&config->stack, STACK_CAPACITY);
   config->tracepoint = rb_tracepoint_new(Qnil, EVENT_CALL | EVENT_RETURN,
@@ -262,18 +263,12 @@ VALUE rotoscope_caller_class_name(VALUE self) {
 
 VALUE rotoscope_caller_method_name(VALUE self) {
   Rotoscope *config = get_config(self);
-  if (config->caller == NULL) {
-    return Qnil;
-  }
-  return rb_sym2str(config->caller->method.id);
+  return config->callsite.method_name;
 }
 
 VALUE rotoscope_caller_singleton_method_p(VALUE self) {
   Rotoscope *config = get_config(self);
-  if (config->caller == NULL) {
-    return Qnil;
-  }
-  return config->caller->method.singleton_p ? Qtrue : Qfalse;
+  return config->callsite.singleton_p;
 }
 
 VALUE rotoscope_caller_path(VALUE self) {

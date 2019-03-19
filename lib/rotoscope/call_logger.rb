@@ -92,12 +92,11 @@ class Rotoscope
       return if blacklist.match?(caller_path)
       return if self == call.receiver
 
+      caller_class_name = call.caller_class_name || '<UNKNOWN>'
       if call.caller_method_name.nil?
-        caller_class_name = '<ROOT>'
         caller_method_name = '<UNKNOWN>'
         caller_method_level = '<UNKNOWN>'
       else
-        caller_class_name = call.caller_class_name
         caller_method_name = escape_csv_string(call.caller_method_name)
         caller_method_level = call.caller_singleton_method? ? 'class' : 'instance'
       end
