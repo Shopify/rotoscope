@@ -101,6 +101,22 @@ class Rotoscope
 
     private
 
+    def log_call(call)
+      return if blacklist.match?(filepath(call))
+      return if self == call.receiver
+
+      buffer = @output_buffer
+      buffer.clear
+
+      if @header.size > 1
+        @header[0...-1].each do |head|
+          buffer << '"' << send(head, call) << '",'
+        end
+      end
+      buffer << send(@header.last, call) << "\n"
+      io.write(buffer)
+    end
+
     def entity(call)
       call.receiver_class_name
     end
@@ -139,23 +155,6 @@ class Rotoscope
       else
         call.caller_singleton_method? ? 'class' : 'instance'
       end
-    end
-
-    def log_call(call)
-      return if blacklist.match?(filepath(call))
-      return if self == call.receiver
-
-      buffer = @output_buffer
-      buffer.clear
-
-      # TODO: check for last line
-      if @header.size > 1
-        @header[0...-1].each do |head|
-          buffer << '"' << send(head, call) << '",'
-        end
-      end
-      buffer << send(@header.last, call) << "\n"
-      io.write(buffer)
     end
 
     def escape_csv_string(string)

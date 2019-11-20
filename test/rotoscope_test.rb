@@ -173,7 +173,7 @@ class RotoscopeTest < MiniTest::Test
     assert_equal([
       { entity: "Example", method_name: "new" },
       { entity: "Example", method_name: "initialize" },
-      { entity: "Example", method_name: "normal_method" }
+      { entity: "Example", method_name: "normal_method" },
     ], parse_and_normalize(contents))
   end
 

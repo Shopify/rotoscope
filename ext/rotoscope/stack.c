@@ -1,7 +1,9 @@
 #include "stack.h"
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include "ruby.h"
 
 static void resize_buffer(rs_stack_t *stack) {

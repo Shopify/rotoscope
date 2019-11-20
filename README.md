@@ -70,21 +70,23 @@ IO,write,instance,example/dog.rb,11,IO,puts,instance
 
 #### `Rotoscope::CallLogger::trace(dest, blacklist: [])`
 
-Writes all calls of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`.
+Writes all calls of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`. You can also restrict which columns are included in the output by whitelisting them in `header`. By default all options are included.
 
 ```ruby
 Rotoscope::CallLogger.trace(dest) { |rs| ... }
 # or...
-Rotoscope::CallLogger.trace(dest, blacklist: ["/.gem/"]) { |rs| ... }
+Rotoscope::CallLogger.trace(dest, blacklist: ["/.gem/"], header: [:filepath]) { |rs| ... }
 ```
 
-#### `Rotoscope::CallLogger::new(dest, blacklist: [])`
+#### `Rotoscope::CallLogger::new(dest, blacklist: [], header: [])`
 
 Same interface as `Rotoscope::CallLogger::trace`, but returns a `Rotoscope::CallLogger` instance, allowing fine-grain control via `Rotoscope::CallLogger#start_trace` and `Rotoscope::CallLogger#stop_trace`.
 ```ruby
 rs = Rotoscope::CallLogger.new(dest)
 # or...
 rs = Rotoscope::CallLogger.new(dest, blacklist: ["/.gem/"])
+# or 
+rs = Rotoscope::CallLogger.new(dest, header: [:filepath, :lineno])
 ```
 
 ---

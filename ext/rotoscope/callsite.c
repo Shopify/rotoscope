@@ -1,4 +1,5 @@
 #include "callsite.h"
+
 #include <ruby.h>
 #include <ruby/debug.h>
 #include <stdbool.h>
