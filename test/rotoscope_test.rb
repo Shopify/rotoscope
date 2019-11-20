@@ -161,6 +161,22 @@ class RotoscopeTest < MiniTest::Test
     ], parse_and_normalize(contents))
   end
 
+  def test_specifiying_the_header
+    rs = Rotoscope::CallLogger.new(@logfile, header: [:entity, :method_name])
+    rs.start_trace
+    Example.new.normal_method
+    rs.stop_trace
+    rs.io.flush
+    rs.close
+    contents = File.read(@logfile)
+
+    assert_equal([
+      { entity: "Example", method_name: "new" },
+      { entity: "Example", method_name: "initialize" },
+      { entity: "Example", method_name: "normal_method" }
+    ], parse_and_normalize(contents))
+  end
+
   def test_traces_instance_method
     contents = rotoscope_trace { Example.new.normal_method }
     assert_equal([
@@ -498,9 +514,15 @@ class RotoscopeTest < MiniTest::Test
   def parse_and_normalize(csv_string)
     CSV.parse(csv_string, headers: true, header_converters: :symbol).map do |row|
       row = row.to_a.sort_by { |name, _| EXPECTATION_ORDER.index(name) }.to_h
-      row[:lineno] = -1
-      row[:filepath] = File.expand_path(row[:filepath]).gsub(ROOT_FIXTURE_PATH, '')
-      row[:entity] = row[:entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
+      if row.key?(:lineno)
+        row[:lineno] = -1
+      end
+      if row.key?(:entity)
+        row[:entity] = row[:entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
+      end
+      if row.key?(:filepath)
+        row[:filepath] = File.expand_path(row[:filepath]).gsub(ROOT_FIXTURE_PATH, '')
+      end
       if row.key?(:caller_entity)
         row[:caller_entity] = row[:caller_entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
       end
