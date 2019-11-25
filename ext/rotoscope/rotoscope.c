@@ -1,7 +1,6 @@
 #include "rotoscope.h"
 
 #include <errno.h>
-#include <ruby.h>
 #include <ruby/debug.h>
 #include <ruby/intern.h>
 #include <ruby/io.h>
@@ -10,7 +9,6 @@
 #include <stdio.h>
 #include <sys/file.h>
 
-#include "callsite.h"
 #include "method_desc.h"
 #include "stack.h"
 

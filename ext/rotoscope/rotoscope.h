@@ -1,8 +1,10 @@
 #ifndef _INC_ROTOSCOPE_H_
 #define _INC_ROTOSCOPE_H_
 
+#include <ruby.h>
 #include <unistd.h>
 
+#include "callsite.h"
 #include "stack.h"
 
 #define EVENT_CALL (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
