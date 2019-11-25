@@ -1,5 +1,6 @@
+#include "rotoscope.h"
+
 #include <errno.h>
-#include <ruby.h>
 #include <ruby/debug.h>
 #include <ruby/intern.h>
 #include <ruby/io.h>
@@ -8,9 +9,7 @@
 #include <stdio.h>
 #include <sys/file.h>
 
-#include "callsite.h"
 #include "method_desc.h"
-#include "rotoscope.h"
 #include "stack.h"
 
 VALUE cRotoscope, cTracePoint;
@@ -61,7 +60,9 @@ static rs_method_desc_t called_method_desc(rb_trace_arg_t *trace_arg) {
       SYM2ID(method_id) != id_initialize;
 
   return (rs_method_desc_t){
-      .receiver = receiver, .id = method_id, .singleton_p = singleton_p,
+      .receiver = receiver,
+      .id = method_id,
+      .singleton_p = singleton_p,
   };
 }
 
@@ -153,7 +154,10 @@ static VALUE rs_alloc(VALUE klass) {
   config->tracing = false;
   config->caller = NULL;
   config->callsite = (rs_callsite_t){
-      .filepath = Qnil, .lineno = 0, .method_name = Qnil, .singleton_p = Qnil,
+      .filepath = Qnil,
+      .lineno = 0,
+      .method_name = Qnil,
+      .singleton_p = Qnil,
   };
   config->trace_proc = Qnil;
   rs_stack_init(&config->stack, STACK_CAPACITY);
