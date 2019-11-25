@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 module Monadify
   def self.extended(base)
     base.define_singleton_method("contents=") { |val| val }

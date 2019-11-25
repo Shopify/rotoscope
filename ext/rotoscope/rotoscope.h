@@ -2,6 +2,7 @@
 #define _INC_ROTOSCOPE_H_
 
 #include <unistd.h>
+
 #include "stack.h"
 
 #define EVENT_CALL (RUBY_EVENT_CALL | RUBY_EVENT_C_CALL)
