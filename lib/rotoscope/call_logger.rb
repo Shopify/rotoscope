@@ -4,9 +4,16 @@ require "csv"
 
 class Rotoscope
   class CallLogger
+    UNSPECIFIED = Object.new
+    private_constant :UNSPECIFIED
+
     class << self
-      def trace(dest, blacklist: [])
-        rs = new(dest, blacklist: blacklist)
+      def trace(dest, blacklist: UNSPECIFIED, excludelist: [])
+        if blacklist != UNSPECIFIED
+          excludelist = blacklist
+          warn("Rotoscope::CallLogger.trace blacklist argument is deprecated, use excludelist instead")
+        end
+        rs = new(dest, excludelist: excludelist)
         rs.trace { yield rs }
         rs
       ensure
@@ -16,13 +23,22 @@ class Rotoscope
 
     HEADER = "entity,caller_entity,filepath,lineno,method_name,method_level,caller_method_name,caller_method_level\n"
 
-    attr_reader :io, :blacklist
+    attr_reader :io, :excludelist
 
-    def initialize(output = nil, blacklist: nil)
-      unless blacklist.is_a?(Regexp)
-        blacklist = Regexp.union(blacklist || [])
+    def blacklist
+      warn("Rotoscope::CallLogger#blacklist is deprecated, use excludelist instead")
+      excludelist
+    end
+
+    def initialize(output = nil, blacklist: UNSPECIFIED, excludelist: nil)
+      if blacklist != UNSPECIFIED
+        excludelist = blacklist
+        warn("Rotoscope::CallLogger#initialize blacklist argument is deprecated, use excludelist instead")
       end
-      @blacklist = blacklist
+      unless excludelist.is_a?(Regexp)
+        excludelist = Regexp.union(excludelist || [])
+      end
+      @excludelist = excludelist
 
       if output.is_a?(String)
         @io = File.open(output, "w")
@@ -89,7 +105,7 @@ class Rotoscope
 
     def log_call(call)
       caller_path = call.caller_path || ""
-      return if blacklist.match?(caller_path)
+      return if excludelist.match?(caller_path)
       return if self == call.receiver
 
       caller_class_name = call.caller_class_name || "<UNKNOWN>"
