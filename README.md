@@ -4,7 +4,8 @@ Rotoscope is a high-performance logger of Ruby method invocations.
 
 ## Status
 
-[![Build Status](https://travis-ci.org/Shopify/rotoscope.svg?branch=master)](https://travis-ci.org/Shopify/rotoscope) [![Gem Version](https://badge.fury.io/rb/rotoscope.svg)](https://badge.fury.io/rb/rotoscope)
+[![Build Status](https://github.com/Shopify/rotoscope/actions/workflows/ci.yml/badge.svg)](https://github.com/Shopify/rotoscope/actions?query=branch%3Amain)
+[![Gem Version](https://badge.fury.io/rb/rotoscope.svg)](https://badge.fury.io/rb/rotoscope)
 
 Rotoscope is subject to breaking changes in minor versions until `1.0` is available.
 
