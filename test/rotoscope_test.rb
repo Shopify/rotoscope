@@ -1,15 +1,16 @@
 # frozen_string_literal: true
-$LOAD_PATH.unshift(File.expand_path('../../lib', __FILE__))
-$LOAD_PATH.unshift(File.expand_path('../', __FILE__))
-require 'rotoscope'
-require 'minitest'
-require 'zlib'
-require 'fileutils'
-require 'csv'
 
-require 'fixture_inner'
-require 'fixture_outer'
-require 'monadify'
+$LOAD_PATH.unshift(File.expand_path("../../lib", __FILE__))
+$LOAD_PATH.unshift(File.expand_path("../", __FILE__))
+require "rotoscope"
+require "minitest"
+require "zlib"
+require "fileutils"
+require "csv"
+
+require "fixture_inner"
+require "fixture_outer"
+require "monadify"
 
 module MyModule
   def module_method; end
@@ -68,14 +69,14 @@ class Example
   end
 end
 
-ROOT_FIXTURE_PATH = File.expand_path('../', __FILE__)
-INNER_FIXTURE_PATH = File.expand_path('../fixture_inner.rb', __FILE__)
-OUTER_FIXTURE_PATH = File.expand_path('../fixture_outer.rb', __FILE__)
-MONADIFY_PATH = File.expand_path('monadify.rb', ROOT_FIXTURE_PATH)
+ROOT_FIXTURE_PATH = File.expand_path("../", __FILE__)
+INNER_FIXTURE_PATH = File.expand_path("../fixture_inner.rb", __FILE__)
+OUTER_FIXTURE_PATH = File.expand_path("../fixture_outer.rb", __FILE__)
+MONADIFY_PATH = File.expand_path("monadify.rb", ROOT_FIXTURE_PATH)
 
 class RotoscopeTest < MiniTest::Test
   def setup
-    @logfile = File.expand_path('tmp/test.csv')
+    @logfile = File.expand_path("tmp/test.csv")
   end
 
   def teardown
@@ -83,7 +84,7 @@ class RotoscopeTest < MiniTest::Test
   end
 
   def test_new
-    rs = Rotoscope::CallLogger.new(@logfile, blacklist: %w(tmp))
+    rs = Rotoscope::CallLogger.new(@logfile, blacklist: ["tmp"])
     assert(rs.is_a?(Rotoscope::CallLogger))
   end
 
@@ -103,7 +104,7 @@ class RotoscopeTest < MiniTest::Test
     rs = Rotoscope::CallLogger.new(@logfile)
     assert_equal(:open, rs.state)
     rs.trace do
-      assert_equal :tracing, rs.state
+      assert_equal(:tracing, rs.state)
     end
     assert_equal(:open, rs.state)
     rs.close
@@ -116,7 +117,7 @@ class RotoscopeTest < MiniTest::Test
       rs.mark
     end
 
-    assert_includes(contents.split("\n"), '--- ')
+    assert_includes(contents.split("\n"), "--- ")
   end
 
   def test_mark_with_custom_strings
@@ -129,7 +130,7 @@ class RotoscopeTest < MiniTest::Test
 
     content_lines = contents.split("\n")
     mark_strings.each do |str|
-      assert_includes content_lines, "--- #{str}"
+      assert_includes(content_lines, "--- #{str}")
     end
   end
 
@@ -302,15 +303,15 @@ class RotoscopeTest < MiniTest::Test
 
   def test_trace_flatten_with_blacklisted_caller
     foo = FixtureOuter.new
-    contents = rotoscope_trace(blacklist: ['/rotoscope_test.rb']) do
+    contents = rotoscope_trace(blacklist: ["/rotoscope_test.rb"]) do
       foo.do_work
     end
 
     assert_equal([
       { entity: "FixtureInner", method_name: "do_work", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1,
-        caller_entity: "FixtureOuter", caller_method_name: "do_work", caller_method_level: "instance" },
+        caller_entity: "FixtureOuter", caller_method_name: "do_work", caller_method_level: "instance", },
       { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1,
-        caller_entity: "FixtureInner", caller_method_name: "do_work", caller_method_level: "instance" },
+        caller_entity: "FixtureInner", caller_method_name: "do_work", caller_method_level: "instance", },
     ], parse_and_normalize(contents))
   end
 
@@ -440,8 +441,8 @@ class RotoscopeTest < MiniTest::Test
       { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
       { entity: "Example", method_name: 'escaping"needed2', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
       { entity: "Example", method_name: "call_escaping_needed", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-      { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: 'call_escaping_needed', caller_method_level: "class" },
-      { entity: "Example", method_name: 'escaping"needed', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: 'call_escaping_needed', caller_method_level: "class" },
+      { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "call_escaping_needed", caller_method_level: "class" },
+      { entity: "Example", method_name: 'escaping"needed', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "call_escaping_needed", caller_method_level: "class" },
     ], parse_and_normalize(contents))
   end
 
@@ -461,8 +462,8 @@ class RotoscopeTest < MiniTest::Test
     assert_equal([
       {
         receiver_class: Example,
-        receiver_class_name: 'Example',
-        method_name: 'singleton_method',
+        receiver_class_name: "Example",
+        method_name: "singleton_method",
         singleton_method: true,
       },
     ], calls)
@@ -483,10 +484,10 @@ class RotoscopeTest < MiniTest::Test
       FixtureOuter.new.do_work
     end
     assert_equal({
-      method_name: 'sum',
+      method_name: "sum",
       caller_class: FixtureInner,
-      caller_class_name: 'FixtureInner',
-      caller_method_name: 'do_work',
+      caller_class_name: "FixtureInner",
+      caller_method_name: "do_work",
       caller_singleton_method: false,
     }, last_call)
   end
@@ -499,7 +500,7 @@ class RotoscopeTest < MiniTest::Test
     CSV.parse(csv_string, headers: true, header_converters: :symbol).map do |row|
       row = row.to_a.sort_by { |name, _| EXPECTATION_ORDER.index(name) }.to_h
       row[:lineno] = -1
-      row[:filepath] = File.expand_path(row[:filepath]).gsub(ROOT_FIXTURE_PATH, '')
+      row[:filepath] = File.expand_path(row[:filepath]).gsub(ROOT_FIXTURE_PATH, "")
       row[:entity] = row[:entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
       if row.key?(:caller_entity)
         row[:caller_entity] = row[:caller_entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
@@ -508,8 +509,8 @@ class RotoscopeTest < MiniTest::Test
     end
   end
 
-  def rotoscope_trace(blacklist: [])
-    Rotoscope::CallLogger.trace(@logfile, blacklist: blacklist) { |rotoscope| yield rotoscope }
+  def rotoscope_trace(blacklist: [], &block)
+    Rotoscope::CallLogger.trace(@logfile, blacklist: blacklist, &block)
     File.read(@logfile)
   end
 
