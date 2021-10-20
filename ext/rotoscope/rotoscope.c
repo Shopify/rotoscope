@@ -15,7 +15,7 @@
 VALUE cRotoscope, cTracePoint;
 ID id_initialize, id_call;
 
-static unsigned long gettid() {
+static unsigned long current_thread_id() {
   return NUM2ULONG(rb_obj_id(rb_thread_current()));
 }
 
@@ -100,7 +100,7 @@ static void event_hook(VALUE tpval, void *data) {
     return;
   }
 
-  if (config->tid != gettid()) return;
+  if (config->tid != current_thread_id()) return;
   if (in_fork(config)) {
     rb_tracepoint_disable(config->tracepoint);
     config->tracing = false;
@@ -150,7 +150,7 @@ static VALUE rs_alloc(VALUE klass) {
       Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
   config->self = self;
   config->pid = getpid();
-  config->tid = gettid();
+  config->tid = current_thread_id();
   config->tracing = false;
   config->caller = NULL;
   config->callsite = (rs_callsite_t){
