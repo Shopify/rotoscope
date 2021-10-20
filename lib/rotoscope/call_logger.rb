@@ -4,8 +4,15 @@ require "csv"
 
 class Rotoscope
   class CallLogger
+    UNSPECIFIED = Object.new
+    private_constant :UNSPECIFIED
+
     class << self
-      def trace(dest, blacklist: [], excludelist: blacklist)
+      def trace(dest, blacklist: UNSPECIFIED, excludelist: [])
+        if blacklist != UNSPECIFIED
+          excludelist = blacklist
+          warn("Rotoscope::CallLogger.trace blacklist argument is deprecated, use excludelist instead")
+        end
         rs = new(dest, excludelist: excludelist)
         rs.trace { yield rs }
         rs
@@ -18,9 +25,16 @@ class Rotoscope
 
     attr_reader :io, :excludelist
 
-    alias_method :blacklist, :excludelist
+    def blacklist
+      warn("Rotoscope::CallLogger#blacklist is deprecated, use excludelist instead")
+      excludelist
+    end
 
-    def initialize(output = nil, blacklist: nil, excludelist: blacklist)
+    def initialize(output = nil, blacklist: UNSPECIFIED, excludelist: nil)
+      if blacklist != UNSPECIFIED
+        excludelist = blacklist
+        warn("Rotoscope::CallLogger#initialize blacklist argument is deprecated, use excludelist instead")
+      end
       unless excludelist.is_a?(Regexp)
         excludelist = Regexp.union(excludelist || [])
       end
