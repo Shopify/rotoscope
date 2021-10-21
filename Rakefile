@@ -31,10 +31,24 @@ end
 # ==========================================================
 
 require "rake/testtask"
-Rake::TestTask.new("test") do |t|
+require "ruby_memcheck"
+
+RubyMemcheck.config(
+  binary_name: "rotoscope",
+  skipped_ruby_functions: RubyMemcheck::Configuration::DEFAULT_SKIPPED_RUBY_FUNCTIONS + [
+    /\Arb_tracepoint_new\z/, # TODO: Fix this upstream ruby bug
+  ],
+)
+
+test_config = lambda do |t|
   t.test_files = FileList["test/*_test.rb"]
 end
-task(test: :build)
+
+Rake::TestTask.new(test: :build, &test_config)
+
+namespace :test do
+  RubyMemcheck::TestTask.new(valgrind: :build, &test_config)
+end
 
 task :rubocop do
   require "rubocop/rake_task"

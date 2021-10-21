@@ -5,7 +5,7 @@ env:
   ROTOSCOPE_COMPILE_ERROR: '1'
 
 up:
-  - ruby: 2.5.3
+  - ruby: 2.7.4
   - homebrew:
     - clang-format
   - bundler
