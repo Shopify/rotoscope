@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+at_exit { GC.start } # to reduce false positives in the test:valgrind rake task
+
 $LOAD_PATH.unshift(File.expand_path("../../lib", __FILE__))
 $LOAD_PATH.unshift(File.expand_path("../", __FILE__))
 require "rotoscope"
