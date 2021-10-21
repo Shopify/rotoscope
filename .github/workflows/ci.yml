@@ -13,3 +13,14 @@ jobs:
         ruby-version: 2.7
         bundler-cache: true
     - run: bundle exec rake
+
+  valgrind:
+    runs-on: ubuntu-latest
+    steps:
+    - run: sudo apt-get install -y valgrind
+    - uses: actions/checkout@v2
+    - uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: 2.7
+        bundler-cache: true
+    - run: bundle exec rake test:valgrind
