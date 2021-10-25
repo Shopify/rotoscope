@@ -502,7 +502,9 @@ class RotoscopeTest < MiniTest::Test
     CSV.parse(csv_string, headers: true, header_converters: :symbol).map do |row|
       row = row.to_a.sort_by { |name, _| EXPECTATION_ORDER.index(name) }.to_h
       row[:lineno] = -1
-      row[:filepath] = File.expand_path(row[:filepath]).gsub(ROOT_FIXTURE_PATH, "")
+      unless row[:filepath].empty?
+        row[:filepath] = File.expand_path(row[:filepath]).gsub(ROOT_FIXTURE_PATH, "")
+      end
       row[:entity] = row[:entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
       if row.key?(:caller_entity)
         row[:caller_entity] = row[:caller_entity].gsub(/:0x[a-fA-F0-9]{4,}/m, ":0xXXXXXX")
