@@ -53,44 +53,38 @@ IO,write,instance,example/dog.rb,11,IO,puts,instance
 
 ## API
 
-- [Public Class Methods](#public-class-methods)
-  - [`trace`](#rotoscopecallloggertracedest-blacklist-)
-  - [`new`](#rotoscopecallloggernewdest-blacklist-)
-- [Public Instance Methods](#public-instance-methods)
-  - [`trace`](#rotoscopecallloggertraceblock)
-  - [`start_trace`](#rotoscopecallloggerstart_trace)
-  - [`stop_trace`](#rotoscopecallloggerstop_trace)
-  - [`mark`](#rotoscopecallloggermarkstr--)
-  - [`close`](#rotoscopecallloggerclose)
-  - [`state`](#rotoscopecallloggerstate)
-  - [`closed?`](#rotoscopecallloggerclosed)
+### Default Logging Interface
 
----
+Rotoscope ships with a default logger, `Rotoscope::CallLogger`. This provides a simple-to-use interface to the tracing engine that maintains performance as much as possible.
 
-### Public Class Methods
+- [`.trace`](#rotoscopecallloggertracedest-excludelist-)
+- [`.new`](#rotoscopecallloggernewdest-excludelist-)
+- [`#trace`](#rotoscopecallloggertraceblock)
+- [`#start_trace`](#rotoscopecallloggerstart_trace)
+- [`#stop_trace`](#rotoscopecallloggerstop_trace)
+- [`#mark`](#rotoscopecallloggermarkstr--)
+- [`#close`](#rotoscopecallloggerclose)
+- [`#state`](#rotoscopecallloggerstate)
+- [`#closed?`](#rotoscopecallloggerclosed)
 
-#### `Rotoscope::CallLogger::trace(dest, blacklist: [])`
+#### `Rotoscope::CallLogger.trace(dest, excludelist: [])`
 
-Writes all calls of methods to `dest`, except for those whose filepath contains any entry in `blacklist`. `dest` is either a filename or an `IO`. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`.
+Writes all calls of methods to `dest`, except for those whose filepath contains any entry in `excludelist`. `dest` is either a filename or an `IO`. Methods invoked at the top of the trace will have a caller entity of `<ROOT>` and a caller method name of `<UNKNOWN>`.
 
 ```ruby
-Rotoscope::CallLogger.trace(dest) { |rs| ... }
+Rotoscope::CallLogger.trace(dest) { |call| ... }
 # or...
-Rotoscope::CallLogger.trace(dest, blacklist: ["/.gem/"]) { |rs| ... }
+Rotoscope::CallLogger.trace(dest, excludelist: ["/.gem/"]) { |call| ... }
 ```
 
-#### `Rotoscope::CallLogger::new(dest, blacklist: [])`
+#### `Rotoscope::CallLogger.new(dest, excludelist: [])`
 
 Same interface as `Rotoscope::CallLogger::trace`, but returns a `Rotoscope::CallLogger` instance, allowing fine-grain control via `Rotoscope::CallLogger#start_trace` and `Rotoscope::CallLogger#stop_trace`.
 ```ruby
 rs = Rotoscope::CallLogger.new(dest)
 # or...
-rs = Rotoscope::CallLogger.new(dest, blacklist: ["/.gem/"])
+rs = Rotoscope::CallLogger.new(dest, excludelist: ["/.gem/"])
 ```
-
----
-
-### Public Instance Methods
 
 #### `Rotoscope::CallLogger#trace(&block)`
 
@@ -171,4 +165,201 @@ rs = Rotoscope::CallLogger.new(dest)
 rs.closed? # false
 rs.close
 rs.closed? # true
+```
+
+### Low-level API
+
+For those who prefer to define their own logging logic, Rotoscope also provides a low-level API. This is the same one used by `Rotoscope::CallLogger` internally. Users may specify a block that is invoked on each detected method call.
+
+- [`.new`](#rotoscopenewblk)
+- [`#start_trace`](#rotoscopestart_trace)
+- [`#stop_trace`](#rotoscopestop_trace)
+- [`#tracing?`](#rotoscopetracing)
+- [`#receiver`](#rotoscopereceiver)
+- [`#receiver_class`](#rotoscopereceiver_class)
+- [`#receiver_class_name`](#rotoscopereceiver_class_name)
+- [`#method_name`](#rotoscopemethod_name)
+- [`#singleton_method?`](#rotoscopesingleton_method)
+- [`#caller_object`](#rotoscopecaller_object)
+- [`#caller_class`](#rotoscopecaller_class)
+- [`#caller_class_name`](#rotoscopecaller_class_name)
+- [`#caller_method_name`](#rotoscopecaller_method_name)
+- [`#caller_singleton_method?`](#rotoscopecaller_singleton_method)
+- [`#caller_path`](#rotoscopecaller_path)
+- [`#caller_lineno`](#rotoscopecaller_lineno)
+
+#### `Rotoscope.new(&blk)`
+
+Creates a new instance of the `Rotoscope` class. The block argument is invoked on every call detected by Rotoscope. The block is passed the same instance returned by `Rotoscope#new` allowing the low-level methods to be called.
+
+```ruby
+rs = Rotoscope.new do |call|
+  # We likely don't want to record calls to Rotoscope
+  return if self == call.receiver
+  ...
+end
+```
+
+#### `Rotoscope#start_trace`
+
+Begins detecting method calls invoked after this point.
+
+```ruby
+rs = Rotoscope.new do |call|
+  ...
+end
+
+rs.start_trace
+# Calls after this points invoke the
+# block passed to `Rotoscope.new`
+```
+
+#### `Rotoscope#stop_trace`
+
+Disables method call detection invoked after this point.
+
+```ruby
+rs = Rotoscope.new do |call|
+  ...
+end
+
+rs.start_trace
+...
+rs.stop_trace
+# Calls after this points will no longer
+# invoke the block passed to `Rotoscope.new`
+```
+
+#### `Rotoscope#tracing?`
+
+Identifies whether the Rotoscope object is actively tracing method calls.
+
+```ruby
+rs = Rotoscope.new do |call|
+  ...
+end
+
+rs.tracing? # => false
+rs.start_trace
+rs.tracing? # => true
+```
+
+#### `Rotoscope#receiver`
+
+Returns the object that the method is being called against.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.receiver # => #<Foo:0x00007fa3d2197c10>
+end
+```
+
+#### `Rotoscope#receiver_class`
+
+Returns the class of the object that the method is being called against.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.receiver_class # => Foo
+end
+```
+
+#### `Rotoscope#receiver_class_name`
+
+Returns the stringified class of the object that the method is being called against.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.receiver_class_name # => "Foo"
+end
+```
+
+#### `Rotoscope#method_name`
+
+Returns the name of the method being invoked.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.method_name # => "bar"
+end
+```
+
+#### `Rotoscope#singleton_method?`
+
+Returns `true` if the method called is defined at the class level. If the call is to an instance method, this returns `false`.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.singleton_method? # => false
+end
+```
+
+#### `Rotoscope#caller_object`
+
+Returns the object whose context we invoked the call from.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.caller_object # => #<SomeClass:0x00008aa6d2cd91b61>
+end
+```
+
+#### `Rotoscope#caller_class`
+
+Returns the class of the object whose context we invoked the call from.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.caller_class # => SomeClass
+end
+```
+
+#### `Rotoscope#caller_class_name`
+
+Returns the tringified class of the object whose context we invoked the call from.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.caller_class_name # => "SomeClass"
+end
+```
+
+#### `Rotoscope#caller_method_name`
+
+Returns the stringified class of the object whose context we invoked the call from.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.caller_method_name # => "call_foobar"
+end
+```
+
+#### `Rotoscope#caller_singleton_method?`
+
+Returns `true` if the method invoking the call is defined at the class level. If the call is to an instance method, this returns `false`.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.caller_singleton_method? # => true
+end
+```
+
+#### `Rotoscope#caller_path`
+
+Returns the path to the file where the call was invoked.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.caller_path # => "/rotoscope_test.rb"
+end
+```
+
+#### `Rotoscope#caller_lineno`
+
+Returns the line number corresponding to the `#caller_path` where the call was invoked. If unknown, returns `-1`.
+
+```ruby
+rs = Rotoscope.new do |call|
+  call.caller_lineno # => 113
+end
 ```
