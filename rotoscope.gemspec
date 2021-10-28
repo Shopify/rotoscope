@@ -19,7 +19,7 @@ Gem::Specification.new do |s|
   s.files       = %x(git ls-files -z).split("\x0").reject do |f|
     f.match(%r{^(test)/})
   end
-  s.required_ruby_version = ">= 2.2.0"
+  s.required_ruby_version = ">= 2.2.0", "< 3"
   s.extensions = ["ext/rotoscope/extconf.rb"]
 
   s.add_development_dependency("minitest", "~> 5.0")
