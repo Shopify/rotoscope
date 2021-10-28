@@ -172,6 +172,7 @@ rs.closed? # true
 For those who prefer to define their own logging logic, Rotoscope also provides a low-level API. This is the same one used by `Rotoscope::CallLogger` internally. Users may specify a block that is invoked on each detected method call.
 
 - [`.new`](#rotoscopenewblk)
+- [`#trace`](#rotoscopetraceblk)
 - [`#start_trace`](#rotoscopestart_trace)
 - [`#stop_trace`](#rotoscopestop_trace)
 - [`#tracing?`](#rotoscopetracing)
@@ -197,6 +198,21 @@ rs = Rotoscope.new do |call|
   # We likely don't want to record calls to Rotoscope
   return if self == call.receiver
   ...
+end
+```
+
+
+#### `Rotoscope#trace(&blk)`
+
+The equivalent of calling [`Rotoscope#start_trace`](#rotoscopestart_trace) and then [`Rotoscope#stop_trace`](#rotoscopestop_trace). The call to `#stop_trace` is within an `ensure` block so it is always called when the block terminates.
+
+```ruby
+rs = Rotoscope.new do |call|
+  ...
+end
+
+rs.trace do
+  # call some code
 end
 ```
 
