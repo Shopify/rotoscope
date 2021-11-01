@@ -1,0 +1,9 @@
+{
+  Memory leak in Ruby for versions <= 2.7.4 (see https://bugs.ruby-lang.org/issues/18264)
+  Memcheck:Leak
+  ...
+  fun:tp_alloc
+  fun:tracepoint_new
+  fun:rb_tracepoint_new
+  ...
+}
