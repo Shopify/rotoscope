@@ -1,3 +1,11 @@
+# Braze's Rotoscope
+This is a fork of https://github.com/Shopify/rotoscope with a few modifications made by Braze to 
+1. Add support for includelist to allow to only include in our results files within a given folder
+2. Add support for prefix exclude to allow us to exclude files from our results using a prefix
+3. Add suport for detailed vs simple mode. Detailed mode is the old way, simple was added to only include a subset of fields
+
+---
+
 # Rotoscope
 
 Rotoscope is a high-performance logger of Ruby method invocations.

@@ -6,3 +6,4 @@ lib/rotoscope/rotoscope.so
 .rubocop-*
 Gemfile.lock
 .bundle
+.idea/
