@@ -141,11 +141,14 @@ class RotoscopeTest < Minitest::Test
       Example.new.normal_method
     end
 
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: "test_flatten", caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "test_flatten", caller_method_level: "instance" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: "test_flatten", caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: "test_flatten", caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "test_flatten", caller_method_level: "instance" },
+        { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: "test_flatten", caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_start_trace_and_stop_trace
@@ -157,20 +160,26 @@ class RotoscopeTest < Minitest::Test
     rs.close
     contents = File.read(@logfile)
 
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_traces_instance_method
     contents = rotoscope_trace { Example.new.normal_method }
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_traces_yielding_method
@@ -179,54 +188,72 @@ class RotoscopeTest < Minitest::Test
       e.yielding_method { e.normal_method }
     end
 
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "yielding_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "yielding_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_traces_and_formats_singletons_of_a_class
     contents = rotoscope_trace { Example.singleton_method }
-    assert_equal([
-      { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_traces_and_formats_singletons_of_an_instance
     contents = rotoscope_trace { Example.new.singleton_class.singleton_method }
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "singleton_class", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "singleton_class", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_traces_included_module_method
     contents = rotoscope_trace { Example.new.module_method }
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "module_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "module_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_traces_extended_module_method
     contents = rotoscope_trace { Example.module_method }
-    assert_equal([
-      { entity: "Example", method_name: "module_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "module_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_traces_prepended_module_method
     contents = rotoscope_trace { Example.new.prepended_method }
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "prepended_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "prepended_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_trace_ignores_calls_if_excluded
@@ -235,11 +262,14 @@ class RotoscopeTest < Minitest::Test
       foo.do_work
     end
 
-    assert_equal([
-      { entity: "FixtureOuter", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "FixtureOuter", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "FixtureOuter", method_name: "do_work", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "FixtureOuter", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "FixtureOuter", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "FixtureOuter", method_name: "do_work", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_trace_ignores_writes_in_fork
@@ -252,11 +282,14 @@ class RotoscopeTest < Minitest::Test
       Example.singleton_method
       Process.wait
     end
-    assert_equal([
-      { entity: "RotoscopeTest", method_name: "fork", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Process", method_name: "wait", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "RotoscopeTest", method_name: "fork", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Process", method_name: "wait", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_trace_disabled_on_close
@@ -271,19 +304,25 @@ class RotoscopeTest < Minitest::Test
       end
       Example.singleton_method
     end
-    assert_equal([
-      { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "singleton_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
     assert_equal("closed stream", mark_err.message)
   end
 
   def test_trace_flatten
     contents = rotoscope_trace { Example.new.normal_method }
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_trace_flatten_across_files
@@ -292,15 +331,18 @@ class RotoscopeTest < Minitest::Test
       foo.do_work
     end
 
-    assert_equal([
-      { entity: "FixtureOuter", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "FixtureOuter", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "FixtureInner", method_name: "new", method_level: "class", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "initialize", caller_method_level: "instance" },
-      { entity: "FixtureInner", method_name: "initialize", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "initialize", caller_method_level: "instance" },
-      { entity: "FixtureOuter", method_name: "do_work", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "FixtureInner", method_name: "do_work", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "do_work", caller_method_level: "instance" },
-      { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "do_work", caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "FixtureOuter", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "FixtureOuter", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "FixtureInner", method_name: "new", method_level: "class", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "initialize", caller_method_level: "instance" },
+        { entity: "FixtureInner", method_name: "initialize", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "initialize", caller_method_level: "instance" },
+        { entity: "FixtureOuter", method_name: "do_work", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "FixtureInner", method_name: "do_work", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1, caller_entity: "FixtureOuter", caller_method_name: "do_work", caller_method_level: "instance" },
+        { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1, caller_entity: "FixtureInner", caller_method_name: "do_work", caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_trace_flatten_with_excluded_caller
@@ -309,12 +351,31 @@ class RotoscopeTest < Minitest::Test
       foo.do_work
     end
 
-    assert_equal([
-      { entity: "FixtureInner", method_name: "do_work", method_level: "instance", filepath: "/fixture_outer.rb", lineno: -1,
-        caller_entity: "FixtureOuter", caller_method_name: "do_work", caller_method_level: "instance", },
-      { entity: "FixtureInner", method_name: "sum", method_level: "instance", filepath: "/fixture_inner.rb", lineno: -1,
-        caller_entity: "FixtureInner", caller_method_name: "do_work", caller_method_level: "instance", },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        {
+          entity: "FixtureInner",
+          method_name: "do_work",
+          method_level: "instance",
+          filepath: "/fixture_outer.rb",
+          lineno: -1,
+          caller_entity: "FixtureOuter",
+          caller_method_name: "do_work",
+          caller_method_level: "instance",
+        },
+        {
+          entity: "FixtureInner",
+          method_name: "sum",
+          method_level: "instance",
+          filepath: "/fixture_inner.rb",
+          lineno: -1,
+          caller_entity: "FixtureInner",
+          caller_method_name: "do_work",
+          caller_method_level: "instance",
+        },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_trace_uses_io_objects
@@ -326,11 +387,14 @@ class RotoscopeTest < Minitest::Test
     assert_predicate(string_io, :eof?)
     contents = string_io.string
 
-    assert_equal([
-      { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "normal_method", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_stop_trace_before_start_does_not_raise
@@ -362,60 +426,78 @@ class RotoscopeTest < Minitest::Test
     end
     thread.join
 
-    assert_equal([
-      { entity: "Thread", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Thread", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Thread", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Thread", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Thread", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Thread", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_dynamic_class_creation
     contents = rotoscope_trace { Class.new }
 
-    assert_equal([
-      { entity: "Class", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Class", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Class", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Object", method_name: "inherited", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Class", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Class", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Class", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Class", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Object", method_name: "inherited", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Class", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_block_defined_methods
     contents = rotoscope_trace { Example.apply("my value!") }
 
-    assert_equal([
-      { entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "apply", caller_method_level: "class" },
-      { entity: "Example", method_name: "contents", method_level: "class", filepath: "/monadify.rb", lineno: -1, caller_entity: "Example", caller_method_name: "monad", caller_method_level: "instance" },
-      { entity: "Example", method_name: "contents=", method_level: "class", filepath: "/monadify.rb", lineno: -1, caller_entity: "Example", caller_method_name: "monad", caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "apply", caller_method_level: "class" },
+        { entity: "Example", method_name: "contents", method_level: "class", filepath: "/monadify.rb", lineno: -1, caller_entity: "Example", caller_method_name: "monad", caller_method_level: "instance" },
+        { entity: "Example", method_name: "contents=", method_level: "class", filepath: "/monadify.rb", lineno: -1, caller_entity: "Example", caller_method_name: "monad", caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_block_defined_methods_in_excluded
     contents = rotoscope_trace(excludelist: [MONADIFY_PATH]) { Example.apply("my value!") }
 
-    assert_equal([
-      { entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "apply", caller_method_level: "class" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "apply", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "monad", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "apply", caller_method_level: "class" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_flatten_with_invoking_block_defined_methods
     contents = rotoscope_trace(excludelist: [MONADIFY_PATH]) { Example.contents }
 
-    assert_equal([
-      { entity: "Example", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "contents", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_module_extend_self
     contents = rotoscope_trace { Module.new { extend self } }
 
-    assert_equal([
-      { entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "#<Module:0xXXXXXX>", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "#<Module:0xXXXXXX>", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "#<Module:0xXXXXXX>", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "#<Module:0xXXXXXX>", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_module_extend
@@ -424,14 +506,17 @@ class RotoscopeTest < Minitest::Test
       m.module_method
     end
 
-    assert_equal([
-      { entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "MyModule", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "MyModule", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "#<Module:0xXXXXXX>", method_name: "module_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Module", method_name: "new", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Module", method_name: "initialize", method_level: "instance", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "#<Module:0xXXXXXX>", method_name: "extend", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Module", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "MyModule", method_name: "extend_object", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "MyModule", method_name: "extended", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "#<Module:0xXXXXXX>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "#<Module:0xXXXXXX>", method_name: "module_method", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_methods_with_quotes
@@ -439,13 +524,16 @@ class RotoscopeTest < Minitest::Test
       Example.public_send(:'escaping"needed2')
     end
 
-    assert_equal([
-      { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: 'escaping"needed2', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
-      { entity: "Example", method_name: "call_escaping_needed", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
-      { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "call_escaping_needed", caller_method_level: "class" },
-      { entity: "Example", method_name: 'escaping"needed', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "call_escaping_needed", caller_method_level: "class" },
-    ], parse_and_normalize(contents))
+    assert_equal(
+      [
+        { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "<UNKNOWN>", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: 'escaping"needed2', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: __method__.to_s, caller_method_level: "instance" },
+        { entity: "Example", method_name: "call_escaping_needed", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "<UNKNOWN>", caller_method_level: "<UNKNOWN>" },
+        { entity: "Example", method_name: "public_send", method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "call_escaping_needed", caller_method_level: "class" },
+        { entity: "Example", method_name: 'escaping"needed', method_level: "class", filepath: "/rotoscope_test.rb", lineno: -1, caller_entity: "Example", caller_method_name: "call_escaping_needed", caller_method_level: "class" },
+      ],
+      parse_and_normalize(contents),
+    )
   end
 
   def test_trace_block
@@ -461,14 +549,17 @@ class RotoscopeTest < Minitest::Test
     rotoscope.trace do
       Example.singleton_method
     end
-    assert_equal([
-      {
-        receiver_class: Example,
-        receiver_class_name: "Example",
-        method_name: "singleton_method",
-        singleton_method: true,
-      },
-    ], calls)
+    assert_equal(
+      [
+        {
+          receiver_class: Example,
+          receiver_class_name: "Example",
+          method_name: "singleton_method",
+          singleton_method: true,
+        },
+      ],
+      calls,
+    )
   end
 
   def test_caller
@@ -485,13 +576,16 @@ class RotoscopeTest < Minitest::Test
     rotoscope.trace do
       FixtureOuter.new.do_work
     end
-    assert_equal({
-      method_name: "sum",
-      caller_class: FixtureInner,
-      caller_class_name: "FixtureInner",
-      caller_method_name: "do_work",
-      caller_singleton_method: false,
-    }, last_call)
+    assert_equal(
+      {
+        method_name: "sum",
+        caller_class: FixtureInner,
+        caller_class_name: "FixtureInner",
+        caller_method_name: "do_work",
+        caller_singleton_method: false,
+      },
+      last_call,
+    )
   end
 
   private
