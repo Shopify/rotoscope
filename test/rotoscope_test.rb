@@ -76,7 +76,7 @@ INNER_FIXTURE_PATH = File.expand_path("../fixture_inner.rb", __FILE__)
 OUTER_FIXTURE_PATH = File.expand_path("../fixture_outer.rb", __FILE__)
 MONADIFY_PATH = File.expand_path("monadify.rb", ROOT_FIXTURE_PATH)
 
-class RotoscopeTest < MiniTest::Test
+class RotoscopeTest < Minitest::Test
   def setup
     @logfile = File.expand_path("tmp/test.csv")
   end
