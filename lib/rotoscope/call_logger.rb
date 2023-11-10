@@ -98,6 +98,7 @@ class Rotoscope
 
     def state
       return :closed if io.closed?
+
       @rotoscope.tracing? ? :tracing : :open
     end
 
@@ -142,6 +143,7 @@ class Rotoscope
       pid = Process.pid
       finalizer = lambda do |_|
         next if Process.pid == pid
+
         # close the file descriptor from another IO object so
         # buffered writes aren't flushed
         IO.for_fd(io.fileno).close

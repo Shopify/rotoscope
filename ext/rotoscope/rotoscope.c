@@ -132,22 +132,38 @@ static void event_hook(VALUE tpval, void *data) {
   rb_funcall(config->trace_proc, id_call, 1, config->self);
 }
 
-static void rs_gc_mark(Rotoscope *config) {
+static void rs_gc_mark(void *data) {
+  Rotoscope *config = (Rotoscope *)data;
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->trace_proc);
   rs_stack_mark(&config->stack);
 }
 
-void rs_dealloc(Rotoscope *config) {
+static void rs_dealloc(void *data) {
+  Rotoscope *config = (Rotoscope *)data;
   stop_tracing_on_cleanup(config);
   rs_stack_free(&config->stack);
   xfree(config);
 }
 
+static size_t rs_memsize(const void *data) {
+  return sizeof(Rotoscope);
+}
+
+static const rb_data_type_t rs_data_type = {
+    .wrap_struct_name = "Rotoscope",
+    .function = {
+        .dmark = rs_gc_mark,
+        .dfree = rs_dealloc,
+        .dsize = rs_memsize,
+    },
+    .flags = RUBY_TYPED_FREE_IMMEDIATELY
+};
+
 static VALUE rs_alloc(VALUE klass) {
   Rotoscope *config;
   VALUE self =
-      Data_Make_Struct(klass, Rotoscope, rs_gc_mark, rs_dealloc, config);
+      TypedData_Make_Struct(klass, Rotoscope, &rs_data_type, config);
   config->self = self;
   config->pid = getpid();
   config->tid = current_thread_id();
@@ -168,7 +184,7 @@ static VALUE rs_alloc(VALUE klass) {
 
 static Rotoscope *get_config(VALUE self) {
   Rotoscope *config;
-  Data_Get_Struct(self, Rotoscope, config);
+  TypedData_Get_Struct(self, Rotoscope, &rs_data_type, config);
   return config;
 }
 
