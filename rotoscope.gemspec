@@ -19,6 +19,8 @@ Gem::Specification.new do |s|
   s.files       = %x(git ls-files -z).split("\x0").reject do |f|
     f.match(%r{^(test)/})
   end
+  s.metadata["allowed_push_host"] = "https://rubygems.org/"
+
   s.required_ruby_version = ">= 2.2.0"
   s.extensions = ["ext/rotoscope/extconf.rb"]
 
