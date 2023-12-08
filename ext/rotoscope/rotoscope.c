@@ -146,24 +146,21 @@ static void rs_dealloc(void *data) {
   xfree(config);
 }
 
-static size_t rs_memsize(const void *data) {
-  return sizeof(Rotoscope);
-}
+static size_t rs_memsize(const void *data) { return sizeof(Rotoscope); }
 
 static const rb_data_type_t rs_data_type = {
     .wrap_struct_name = "Rotoscope",
-    .function = {
-        .dmark = rs_gc_mark,
-        .dfree = rs_dealloc,
-        .dsize = rs_memsize,
-    },
-    .flags = RUBY_TYPED_FREE_IMMEDIATELY
-};
+    .function =
+        {
+            .dmark = rs_gc_mark,
+            .dfree = rs_dealloc,
+            .dsize = rs_memsize,
+        },
+    .flags = RUBY_TYPED_FREE_IMMEDIATELY};
 
 static VALUE rs_alloc(VALUE klass) {
   Rotoscope *config;
-  VALUE self =
-      TypedData_Make_Struct(klass, Rotoscope, &rs_data_type, config);
+  VALUE self = TypedData_Make_Struct(klass, Rotoscope, &rs_data_type, config);
   config->self = self;
   config->pid = getpid();
   config->tid = current_thread_id();
