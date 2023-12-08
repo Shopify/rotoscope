@@ -62,8 +62,10 @@ void rs_stack_init(rs_stack_t *stack, unsigned int capacity) {
 }
 
 void rs_stack_mark(rs_stack_t *stack) {
-  for (int i = 0; i <= stack->top; i++) {
-    rs_stack_frame_t *frame = &stack->contents[i];
-    rs_method_desc_mark(&frame->method);
+  if (stack->contents) {
+    for (int i = 0; i <= stack->top; i++) {
+      rs_stack_frame_t *frame = &stack->contents[i];
+      rs_method_desc_mark(&frame->method);
+    }
   }
 }
