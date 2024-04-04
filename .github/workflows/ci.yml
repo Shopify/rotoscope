@@ -6,21 +6,27 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruby: ["2.7"]
     steps:
     - uses: actions/checkout@v2
     - uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 2.7
+        ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
     - run: bundle exec rake
 
   valgrind:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        ruby: ["2.7"]
     steps:
     - run: sudo apt-get install -y valgrind
     - uses: actions/checkout@v2
     - uses: ruby/setup-ruby@v1
       with:
-        ruby-version: 2.7
+        ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
     - run: bundle exec rake test:valgrind
