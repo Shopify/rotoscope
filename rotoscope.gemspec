@@ -21,7 +21,7 @@ Gem::Specification.new do |s|
   end
   s.metadata["allowed_push_host"] = "https://rubygems.org/"
 
-  s.required_ruby_version = ">= 2.2.0"
+  s.required_ruby_version = ">= 2.7.0"
   s.extensions = ["ext/rotoscope/extconf.rb"]
 
   s.add_development_dependency("minitest", "~> 5.0")

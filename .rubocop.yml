@@ -6,7 +6,6 @@ inherit_gem:
 AllCops:
   Exclude:
     - 'tmp/**/*'
-  TargetRubyVersion: 2.7
 
 Metrics/LineLength:
   Exclude:
