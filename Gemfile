@@ -5,4 +5,4 @@ gemspec
 
 gem "rubocop", require: false
 gem "rubocop-shopify", require: false
-gem "ruby_memcheck", "~> 0.3.0", require: false
+gem "ruby_memcheck", "~> 2.3.0", require: false
