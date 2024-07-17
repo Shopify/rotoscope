@@ -9,6 +9,13 @@ Rotoscope is a high-performance logger of Ruby method invocations.
 
 Rotoscope is subject to breaking changes in minor versions until `1.0` is available.
 
+## Table of Contents
+
+- [Example](https://github.com/Shopify/rotoscope?tab=readme-ov-file#example)
+- [API](https://github.com/Shopify/rotoscope?tab=readme-ov-file#api)
+  - [Default Logging Interface](https://github.com/Shopify/rotoscope?tab=readme-ov-file#default-logging-interface)
+  - [Low-level API](https://github.com/Shopify/rotoscope?tab=readme-ov-file#low-level-api)
+
 ## Example
 
 ```ruby
