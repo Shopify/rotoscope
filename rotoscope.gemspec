@@ -25,6 +25,6 @@ Gem::Specification.new do |s|
   s.extensions = ["ext/rotoscope/extconf.rb"]
 
   s.add_development_dependency("minitest", "~> 5.0")
-  s.add_development_dependency("mocha", "~> 0.14")
+  s.add_development_dependency("mocha", "~> 2.4")
   s.add_development_dependency("rake-compiler", "~> 1.2")
 end
