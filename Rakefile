@@ -50,4 +50,13 @@ task :rubocop do
   RuboCop::RakeTask.new
 end
 
+# ==========================================================
+# Benchmarking
+# ==========================================================
+
+desc "Run benchmarks (set BENCH_N for iterations, default 10000)"
+task bench: :build do
+  ruby "bench/benchmark.rb"
+end
+
 task(default: [:test, :rubocop])
