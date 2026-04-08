@@ -5,17 +5,18 @@ require "rotoscope"
 require "tempfile"
 require "csv"
 
-PASS = 0
-FAIL = 0
+$pass_count = 0
+$fail_count = 0
 
 def check(name)
   print "  #{name}... "
   begin
     yield
     puts "PASS"
+    $pass_count += 1
   rescue => e
     puts "FAIL: #{e.message}"
-    FAIL += 1
+    $fail_count += 1
   end
 end
 

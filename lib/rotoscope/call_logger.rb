@@ -114,15 +114,17 @@ class Rotoscope
       ObjectSpace.define_finalizer(io, CallLogger.make_fork_finalizer(pid, fd))
     end
 
-    # Exposed for testability. Returns a lambda that closes the fd without
-    # flushing if called from a forked child process (different pid).
-    def self.make_fork_finalizer(pid, fd)
-      lambda do |_|
-        return if Process.pid == pid
+    class << self
+      # Exposed for testability. Returns a lambda that closes the fd without
+      # flushing if called from a forked child process (different pid).
+      def make_fork_finalizer(pid, fd)
+        lambda do |_|
+          return if Process.pid == pid
 
-        # close the file descriptor from another IO object so
-        # buffered writes aren't flushed
-        IO.for_fd(fd).close
+          # close the file descriptor from another IO object so
+          # buffered writes aren't flushed
+          IO.for_fd(fd).close
+        end
       end
     end
   end
