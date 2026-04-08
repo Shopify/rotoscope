@@ -6,43 +6,12 @@
 
 #include "ruby.h"
 
-static void resize_buffer(rs_stack_t *stack) {
+void rs_stack_resize(rs_stack_t *stack) {
   unsigned int newsize = stack->capacity * 2;
   rs_stack_frame_t *resized_contents =
       REALLOC_N(stack->contents, rs_stack_frame_t, newsize);
   stack->contents = resized_contents;
   stack->capacity = newsize;
-}
-
-bool rs_stack_full(rs_stack_t *stack) {
-  return stack->top >= stack->capacity - 1;
-}
-
-bool rs_stack_empty(rs_stack_t *stack) { return stack->top < 0; }
-
-void rs_stack_push(rs_stack_t *stack, rs_stack_frame_t new_frame) {
-  if (rs_stack_full(stack)) {
-    resize_buffer(stack);
-  }
-
-  stack->contents[++stack->top] = new_frame;
-}
-
-rs_stack_frame_t rs_stack_pop(rs_stack_t *stack) {
-  if (rs_stack_empty(stack)) {
-    fprintf(stderr, "Stack is empty!\n");
-    exit(1);
-  }
-
-  return stack->contents[stack->top--];
-}
-
-rs_stack_frame_t *rs_stack_peek(rs_stack_t *stack) {
-  if (rs_stack_empty(stack)) {
-    return NULL;
-  }
-
-  return &stack->contents[stack->top];
 }
 
 void rs_stack_reset(rs_stack_t *stack) { stack->top = -1; }

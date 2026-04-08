@@ -8,4 +8,5 @@ VALUE rs_method_class(rs_method_desc_t *method) {
 void rs_method_desc_mark(rs_method_desc_t *method) {
   rb_gc_mark(method->receiver);
   rb_gc_mark(method->id);
+  rb_gc_mark(method->class_name);
 }
