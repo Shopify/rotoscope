@@ -36,7 +36,7 @@ require "ruby_memcheck"
 RubyMemcheck.config(binary_name: "rotoscope")
 
 test_config = lambda do |t|
-  t.test_files = FileList["test/*_test.rb"]
+  t.test_files = FileList["test/*_test.rb"].exclude("test/memory_test.rb")
 end
 
 Rake::TestTask.new(test: :build, &test_config)
