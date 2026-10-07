@@ -605,6 +605,15 @@ class RotoscopeTest < Minitest::Test
       caller.nil? || caller.equal?(Recurser) || caller.is_a?(Recurser)
     end
     assert_equal([], unexpected)
+    assert_operator(callers.count { |c| c.is_a?(Recurser) }, :>=, 1200)
+  end
+
+  def test_caller_cleared_after_stop_trace
+    rotoscope = Rotoscope.new { |_rs| }
+    rotoscope.trace { Recurser.new.descend(1) }
+
+    assert_nil(rotoscope.caller_object)
+    assert_nil(rotoscope.caller_class)
   end
 
   private

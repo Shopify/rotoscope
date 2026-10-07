@@ -211,6 +211,7 @@ VALUE rotoscope_stop_trace(VALUE self) {
     rb_tracepoint_disable(config->tracepoint);
     config->tracing = false;
     rs_stack_reset(&config->stack);
+    config->has_caller = false;
   }
 
   return Qnil;
