@@ -124,7 +124,11 @@ static void event_hook(VALUE tpval, void *data) {
 
   config->callsite = tracearg_path(trace_arg);
 
-  config->caller = rs_stack_peek(&config->stack);
+  rs_stack_frame_t *caller = rs_stack_peek(&config->stack);
+  config->has_caller = caller != NULL;
+  if (caller != NULL) {
+    config->caller = *caller;
+  }
 
   rs_method_desc_t method_desc = called_method_desc(trace_arg);
   rs_stack_push(&config->stack, (rs_stack_frame_t){.method = method_desc});
@@ -137,6 +141,9 @@ static void rs_gc_mark(void *data) {
   rb_gc_mark(config->tracepoint);
   rb_gc_mark(config->trace_proc);
   rs_stack_mark(&config->stack);
+  if (config->has_caller) {
+    rs_method_desc_mark(&config->caller.method);
+  }
 }
 
 static void rs_dealloc(void *data) {
@@ -165,7 +172,7 @@ static VALUE rs_alloc(VALUE klass) {
   config->pid = getpid();
   config->tid = current_thread_id();
   config->tracing = false;
-  config->caller = NULL;
+  config->has_caller = false;
   config->callsite = (rs_callsite_t){
       .filepath = Qnil,
       .lineno = 0,
@@ -256,18 +263,18 @@ VALUE rotoscope_singleton_method_p(VALUE self) {
 
 VALUE rotoscope_caller_object(VALUE self) {
   Rotoscope *config = get_config(self);
-  if (config->caller == NULL) {
+  if (!config->has_caller) {
     return Qnil;
   }
-  return config->caller->method.receiver;
+  return config->caller.method.receiver;
 }
 
 VALUE rotoscope_caller_class(VALUE self) {
   Rotoscope *config = get_config(self);
-  if (config->caller == NULL) {
+  if (!config->has_caller) {
     return Qnil;
   }
-  return rs_method_class(&config->caller->method);
+  return rs_method_class(&config->caller.method);
 }
 
 VALUE rotoscope_caller_class_name(VALUE self) {

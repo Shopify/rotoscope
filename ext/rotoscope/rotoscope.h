@@ -19,7 +19,9 @@ typedef struct {
   unsigned long tid;
   bool tracing;
   rs_stack_t stack;
-  rs_stack_frame_t *caller;
+  // Copy, not a pointer into `stack`: pushing may realloc the stack buffer.
+  rs_stack_frame_t caller;
+  bool has_caller;
   rs_callsite_t callsite;
   VALUE trace_proc;
 } Rotoscope;
