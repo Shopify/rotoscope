@@ -588,6 +588,34 @@ class RotoscopeTest < Minitest::Test
     )
   end
 
+  class Recurser
+    def descend(depth)
+      depth.zero? ? nil : Recurser.new.descend(depth - 1)
+    end
+  end
+
+  def test_caller_across_stack_growth
+    # Recurse well past the initial stack capacity (500) so the frame buffer
+    # is reallocated while a call is being traced and its caller is read.
+    callers = []
+    rotoscope = Rotoscope.new { |rs| callers << rs.caller_object }
+    rotoscope.trace { Recurser.new.descend(1200) }
+
+    unexpected = callers.reject do |caller|
+      caller.nil? || caller.equal?(Recurser) || caller.is_a?(Recurser)
+    end
+    assert_equal([], unexpected)
+    assert_operator(callers.count { |c| c.is_a?(Recurser) }, :>=, 1200)
+  end
+
+  def test_caller_cleared_after_stop_trace
+    rotoscope = Rotoscope.new { |_rs| }
+    rotoscope.trace { Recurser.new.descend(1) }
+
+    assert_nil(rotoscope.caller_object)
+    assert_nil(rotoscope.caller_class)
+  end
+
   private
 
   EXPECTATION_ORDER = [:entity, :method_name, :method_level, :filepath, :lineno, :caller_entity, :caller_method_name, :caller_method_level]
