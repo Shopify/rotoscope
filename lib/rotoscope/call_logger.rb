@@ -39,6 +39,9 @@ class Rotoscope
         excludelist = Regexp.union(excludelist || [])
       end
       @excludelist = excludelist
+      # An empty excludelist (matches nothing) is passed as nil to the native
+      # logger so the C code can skip the per-event rb_funcall match check.
+      @excludelist_for_native = excludelist.source.empty? || excludelist.source == "(?!)" ? nil : excludelist
 
       if output.is_a?(String)
         @io = File.open(output, "w")
@@ -52,7 +55,8 @@ class Rotoscope
 
       @io << HEADER
 
-      @rotoscope = Rotoscope.new(&method(:log_call))
+      @rotoscope = Rotoscope.new
+      @rotoscope.set_native_logger(@io, @excludelist_for_native, self)
     end
 
     def trace
@@ -104,51 +108,24 @@ class Rotoscope
 
     private
 
-    def log_call(call)
-      caller_path = call.caller_path || ""
-      return if excludelist.match?(caller_path)
-      return if self == call.receiver
-
-      caller_class_name = call.caller_class_name || "<UNKNOWN>"
-      if call.caller_method_name.nil?
-        caller_method_name = "<UNKNOWN>"
-        caller_method_level = "<UNKNOWN>"
-      else
-        caller_method_name = escape_csv_string(call.caller_method_name)
-        caller_method_level = call.caller_singleton_method? ? "class" : "instance"
-      end
-
-      call_method_level = call.singleton_method? ? "class" : "instance"
-      method_name = escape_csv_string(call.method_name)
-
-      buffer = @output_buffer
-      buffer.clear
-      buffer <<
-        '"' << call.receiver_class_name << '",' \
-          '"' << caller_class_name << '",' \
-            '"' << caller_path << '",' \
-        << call.caller_lineno.to_s << "," \
-          '"' << method_name << '",' \
-        << call_method_level << "," \
-          '"' << caller_method_name << '",' \
-        << caller_method_level << "\n"
-      io.write(buffer)
-    end
-
-    def escape_csv_string(string)
-      string.include?('"') ? string.gsub('"', '""') : string
-    end
-
     def prevent_flush_from_finalizer_in_fork(io)
       pid = Process.pid
-      finalizer = lambda do |_|
-        next if Process.pid == pid
+      fd = io.fileno
+      ObjectSpace.define_finalizer(io, CallLogger.make_fork_finalizer(pid, fd))
+    end
 
-        # close the file descriptor from another IO object so
-        # buffered writes aren't flushed
-        IO.for_fd(io.fileno).close
+    class << self
+      # Exposed for testability. Returns a lambda that closes the fd without
+      # flushing if called from a forked child process (different pid).
+      def make_fork_finalizer(pid, fd)
+        lambda do |_|
+          return if Process.pid == pid
+
+          # close the file descriptor from another IO object so
+          # buffered writes aren't flushed
+          IO.for_fd(fd).close
+        end
       end
-      ObjectSpace.define_finalizer(io, finalizer)
     end
   end
 end

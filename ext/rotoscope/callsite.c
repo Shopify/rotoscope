@@ -4,49 +4,37 @@
 #include <ruby/debug.h>
 #include <stdbool.h>
 
-static VALUE caller_frame(int *line, bool ruby_call) {
-  VALUE frames[2] = {Qnil, Qnil};
-  int lines[2] = {0, 0};
+static VALUE caller_frame(int *line) {
+  VALUE frame = Qnil;
+  int frame_line = 0;
 
-  // At this point, for ruby calls, the top ruby stack frame is
-  // for the method being called, so we want to skip that frame
-  // and get the caller location. This is why we use 1 for ruby
-  // calls.
-  //
-  // However, for C call, the top stack frame is for the caller,
-  // so we don't want to have to skip over any extra stack frames
-  // for C calls.
-  int frame_index = ruby_call ? 1 : 0;
+  // For ruby calls, the top frame is the callee — skip it to get the caller.
+  // Ruby 4.0+ fixed rb_profile_frames start argument (ruby-lang bug #14607).
+  rb_profile_frames(1, 1, &frame, &frame_line);
 
-  // There is currently a bug in rb_profile_frames that
-  // causes the start argument to effectively always
-  // act as if it were 0, so we need to also get the top
-  // frame. (https://bugs.ruby-lang.org/issues/14607)
-  rb_profile_frames(0, frame_index + 1, frames, lines);
-
-  *line = lines[frame_index];
-  return frames[frame_index];
+  *line = frame_line;
+  return frame;
 }
 
 rs_callsite_t c_callsite(rb_trace_arg_t *trace_arg) {
-  int line;
-  VALUE frame = caller_frame(&line, false);
   return (rs_callsite_t){
       .filepath = rb_tracearg_path(trace_arg),
       .lineno = FIX2INT(rb_tracearg_lineno(trace_arg)),
-      .method_name = rb_profile_frame_method_name(frame),
-      .singleton_p = rb_profile_frame_singleton_method_p(frame),
+      .method_name = Qnil,
+      .singleton_p = Qnil,
+      .profile_frame = Qnil,
   };
 }
 
 rs_callsite_t ruby_callsite() {
   int line;
-  VALUE frame = caller_frame(&line, true);
+  VALUE frame = caller_frame(&line);
 
   return (rs_callsite_t){
       .filepath = rb_profile_frame_path(frame),
       .lineno = line,
-      .method_name = rb_profile_frame_method_name(frame),
-      .singleton_p = rb_profile_frame_singleton_method_p(frame),
+      .method_name = Qnil,  // filled from stack or profile_frame in event_hook
+      .singleton_p = Qnil,
+      .profile_frame = frame,
   };
 }

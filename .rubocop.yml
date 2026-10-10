@@ -6,6 +6,8 @@ inherit_gem:
 AllCops:
   Exclude:
     - 'tmp/**/*'
+    - 'test/memory_test.rb'
+    - 'test/safety_test.rb'
 
 Layout/LineLength:
   Exclude:

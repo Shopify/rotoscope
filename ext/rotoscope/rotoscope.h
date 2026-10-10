@@ -16,7 +16,7 @@ typedef struct {
   VALUE self;
   VALUE tracepoint;
   pid_t pid;
-  unsigned long tid;
+  VALUE tid;
   bool tracing;
   rs_stack_t stack;
   // Copy, not a pointer into `stack`: pushing may realloc the stack buffer.
@@ -24,6 +24,12 @@ typedef struct {
   bool has_caller;
   rs_callsite_t callsite;
   VALUE trace_proc;
+  // Native logger fields — when set, event_hook calls the log function
+  // directly in C, bypassing the Ruby proc callback entirely.
+  VALUE log_io;
+  VALUE log_excludelist;
+  VALUE log_self_obj;
+  VALUE log_buffer;
 } Rotoscope;
 
 #endif

@@ -9,6 +9,7 @@ typedef struct {
   unsigned int lineno;
   VALUE method_name;
   VALUE singleton_p;
+  VALUE profile_frame;  // for lazy method_name/singleton_p extraction
 } rs_callsite_t;
 
 rs_callsite_t c_callsite(rb_trace_arg_t *trace_arg);

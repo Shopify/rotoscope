@@ -7,6 +7,7 @@
 typedef struct rs_method_desc_t {
   VALUE receiver;
   VALUE id;
+  VALUE class_name;
   bool singleton_p;
 } rs_method_desc_t;
 
